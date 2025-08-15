@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="../build/Ergasia-API.props" />
+</Project>
