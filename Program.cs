@@ -115,11 +115,14 @@ var app = builder.Build();
 
 // Uncomment this when creating WebApp
 
+
 app.UseCors(policy => policy
     .AllowAnyHeader()
     .AllowAnyMethod()
     .AllowCredentials()
+    .WithOrigins("ergasia-webapp.azurewebsites.net")
 );
+
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
