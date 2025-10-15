@@ -119,7 +119,6 @@ app.UseCors(policy => policy
     .AllowAnyHeader()
     .AllowAnyMethod()
     .AllowCredentials()
-    .WithOrigins("https://localhost:7135")
 );
 
 // Configure the HTTP request pipeline.
