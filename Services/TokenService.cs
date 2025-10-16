@@ -14,7 +14,7 @@ public class TokenService(IConfiguration configuration, UserManager<User> accoun
 {
     public async Task<string> GenerateToken(User user)
     {
-        var tokenKey = configuration["TokenKey"] ?? throw new Exception("Token key not found");
+        var tokenKey = Environment.GetEnvironmentVariable("TOKEN_KEY") ?? throw new Exception("Token key not found");
         if (tokenKey.Length < 64) throw new Exception("Token key needs to be at least 64 characters long");
         
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenKey));

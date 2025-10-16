@@ -120,7 +120,7 @@ app.UseCors(policy => policy
     .AllowAnyHeader()
     .AllowAnyMethod()
     .AllowCredentials()
-    .WithOrigins("ergasia-webapp.azurewebsites.net")
+    .WithOrigins("https://ergasia-webapp.azurewebsites.net")
 );
 
 

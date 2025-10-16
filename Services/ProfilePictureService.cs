@@ -10,8 +10,6 @@ public class ProfilePictureService : IProfilePictureService
 
     public ProfilePictureService(IConfiguration configuration)
     {
-        //var connectionString = Environment.GetEnvironmentVariable("ERGASIA_CONNECTION_STRING");
-        //var containerName = Environment.GetEnvironmentVariable("ERGASIA_DB_CONNECTION_STRING");
         var connectionString = Environment.GetEnvironmentVariable("STORAGE_CONNECTION_STRING");
         var containerName = configuration["AzureStorage:ProfilePictures"];
         _containerClient = new BlobContainerClient(connectionString, containerName);
