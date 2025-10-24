@@ -19,18 +19,18 @@ public class JobsController(
 {
     public record MessageDto
     {
-        public string? Message { get; }    
+        public string? Message { get; } = null;
     }
 
     [HttpGet("/Jobs")]
-    public async Task<IEnumerable<JobDto?>> GetAllUpcomingAsync()
+    public async Task<List<JobDto>> GetAllUpcomingAsync()
     {
-        var result = new List<JobDto>();
-        var jobs = repository.GetAllAsync();
-        
-        await foreach (var job in jobs)
+        List<JobDto> result = [];
+        var jobs = await repository.GetAllAsync();
+
+        if (jobs.Count > 0)
         {
-            if (job?.DateOfBegin > DateTime.UtcNow) result.Add(mapper.Map<JobDto>(job));
+            result.AddRange(from job in jobs where job.DateOfBegin > DateTime.UtcNow select mapper.Map<JobDto>(job));
         }
         
         return result;
@@ -38,13 +38,14 @@ public class JobsController(
 
     [HttpGet]
     [Authorize]
-    public async Task<IEnumerable<JobDto?>> GetAllFromEmployerAsync(string employerId)
+    public async Task<List<JobDto>> GetAllFromEmployerAsync(string employerId)
     {
-        var result = new List<JobDto>();
-        var jobs = repository.GetByEmployerIdAsync(employerId);
-        await foreach (var job in jobs)
+        List<JobDto> result = [];
+        var jobs = await repository.GetByEmployerIdAsync(employerId);
+        
+        if (jobs.Count > 0)
         {
-            result.Add(mapper.Map<JobDto>(job));
+            result.AddRange(from job in jobs select mapper.Map<JobDto>(job));
         }
         
         return result;
@@ -180,16 +181,16 @@ public class JobsController(
     [HttpGet("{jobId}/Requests")]
     public async Task<IEnumerable<JobRequestDto?>> GetJobRequestsAsync(string employerId, string jobId)
     {
-        var result = new List<JobRequestDto>();
+        List<JobRequestDto> result = [];
         
         if (!IsValidModelState()) return result;
         if (! await AuthorizeUser(employerId)) return result;
 
-        var jobRequests = workerJobRequestRepository.GetByEmployerIdAsync(employerId, jobId);
+        var jobRequests = await workerJobRequestRepository.GetByEmployerIdAsync(employerId, jobId);
 
-        await foreach (var jobRequest in jobRequests)
+        if (jobRequests.Count > 0)
         {
-            result.Add(mapper.Map<JobRequestDto>(jobRequest));
+            result.AddRange(from jobRequest in jobRequests select mapper.Map<JobRequestDto>(jobRequest));
         }
         
         return result;
@@ -197,18 +198,18 @@ public class JobsController(
     
     [Authorize]
     [HttpGet("/Workers/{workerId}/Jobs/Requests")]
-    public async Task<IEnumerable<JobRequestDto?>?> GetJobRequestsByWorkerIdAsync(string workerId)
+    public async Task<List<JobRequestDto>> GetJobRequestsByWorkerIdAsync(string workerId)
     {
-        var result = new List<JobRequestDto>();
+        List<JobRequestDto> result = [];
         
         if (!IsValidModelState()) return result;
         if (! await AuthorizeUser(workerId)) return result;
 
-        var jobRequests = workerJobRequestRepository.GetByWorkerId(workerId);
+        var jobRequests = await workerJobRequestRepository.GetByWorkerId(workerId);
 
-        await foreach (var jobRequest in jobRequests)
+        if (jobRequests.Count > 0)
         {
-            result.Add(mapper.Map<JobRequestDto>(jobRequest));
+            result.AddRange(from jobRequest in jobRequests select mapper.Map<JobRequestDto>(jobRequest));
         }
         
         return result;
@@ -313,17 +314,14 @@ public class JobsController(
 
     [HttpGet("{jobId}/Workers")]
     [Authorize]
-    public async Task<IEnumerable<WorkerJobDto?>> GetWorkerJobsAsync(string jobId)
+    public async Task<List<WorkerJobDto>> GetWorkerJobsAsync(string jobId)
     {
-        var result = new List<WorkerJobDto>();
+        List<WorkerJobDto> result = [];
         if (!IsValidModelState()) return result;
         
-        var workerJobs = workerJobRepository.GetByJobIdAsync(jobId);
-
-        await foreach (var workerJob in workerJobs)
-        {
-            result.Add(mapper.Map<WorkerJobDto>(workerJob));
-        }
+        var workerJobs = await workerJobRepository.GetByJobIdAsync(jobId);
+        if (workerJobs.Count > 0) 
+            result.AddRange(from workerJob in workerJobs select mapper.Map<WorkerJobDto>(workerJob));
         
         return result;
     }
@@ -332,15 +330,12 @@ public class JobsController(
     [Authorize]
     public async Task<IEnumerable<WorkerJobDto?>> GetWorkerJobsByWorkerIdAsync(string workerId)
     {
-        var result = new List<WorkerJobDto>();
+        List<WorkerJobDto> result = [];
         if (!IsValidModelState()) return result;
         
-        var workerJobs = workerJobRepository.GetByWorkerIdAsync(workerId);
-
-        await foreach (var workerJob in workerJobs)
-        {
-            result.Add(mapper.Map<WorkerJobDto>(workerJob));
-        }
+        var workerJobs = await workerJobRepository.GetByWorkerIdAsync(workerId);
+        if (workerJobs.Count > 0) 
+            result.AddRange(from workerJob in workerJobs select mapper.Map<WorkerJobDto>(workerJob));
         
         return result;
     }

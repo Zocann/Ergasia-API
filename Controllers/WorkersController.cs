@@ -14,13 +14,13 @@ public class WorkersController(IWorkerRepository repository, IMapper mapper,
 {
     [HttpGet]
     [Authorize(Roles = "Employer,Admin")]
-    public async Task<IEnumerable<WorkerDto?>> GetAllAsync()
+    public async Task<List<WorkerDto>> GetAllAsync()
     {
-        var result = new List<WorkerDto>();
-        var workers = repository.GetAllAsync();
-        await foreach (var worker in workers)
+        var workers = await repository.GetAllAsync();
+        List<WorkerDto> result = [];
+        if (workers.Count > 0)
         {
-            result.Add(mapper.Map<DTOs_WorkerDto>(worker));
+            result.AddRange(workers.Select(mapper.Map<WorkerDto>));
         }
         return result;
     }

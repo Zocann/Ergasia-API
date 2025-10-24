@@ -1,5 +1,6 @@
 using Ergasia_API.Data;
 using Ergasia_API.Models.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ergasia_API.Models.Repositories;
 
@@ -10,22 +11,9 @@ public class EmployerEfRepository(PrimaryDbContext context) : IEmployerRepositor
         return await context.Employers.FindAsync(id);
     }
 
-    public async IAsyncEnumerable<Employer?> GetAllAsync()
+    public async Task<List<Employer>> GetAllAsync()
     {
-        await foreach (var employer in context.Employers.AsAsyncEnumerable())
-        {
-            yield return employer;
-        }
-    }
-
-    public async IAsyncEnumerable<Employer?> GetAllActiveAsync()
-    {
-        var employers = GetAllAsync();
-        
-        await foreach (var employer in employers)
-        {
-            yield return employer;
-        }
+        return await context.Employers.ToListAsync();
     }
     
     

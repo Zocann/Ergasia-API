@@ -12,18 +12,15 @@ public class EmployersController(IEmployerRepository repository, IMapper mapper,
     IAuthorizationService authorizationService) : ControllerBase
 {
     [HttpGet]
-    public async Task<IEnumerable<EmployerDto?>> GetAllAsync()
+    public async Task<List<EmployerDto>> GetAllAsync()
     {
-        var employers = repository.GetAllAsync();
-        
-        var response = new List<EmployerDto>();
-        await foreach (var employer in employers)
+        var employers = await repository.GetAllAsync();
+        List<EmployerDto> result = [];
+        if (employers.Count > 0)
         {
-            if (employer == null) return response;
-            response.Add(mapper.Map<EmployerDto>(employer));
+            result.AddRange(employers.Select(mapper.Map<EmployerDto>));
         }
-        
-        return response;
+        return result;
     }
     
     [HttpGet("{id}")]

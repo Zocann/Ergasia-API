@@ -6,30 +6,22 @@ namespace Ergasia_API.Models.Repositories;
 
 public class WorkerJobEfRepository(PrimaryDbContext context) : IWorkerJobRepository
 {
-    public async IAsyncEnumerable<WorkerJob?> GetByJobIdAsync(string jobId)
+    public async Task<List<WorkerJob>> GetByJobIdAsync(string jobId)
     {
-        await foreach (var workerJob in context.WorkerJobs
+        return await context.WorkerJobs
             .Where(wj => wj.JobId == jobId)
             .Include(wj => wj.Job)
             .Include(wj => wj.Worker)
-            .AsAsyncEnumerable())
-        {
-            yield return workerJob;
-        }
+            .ToListAsync();
     }
 
-    public async IAsyncEnumerable<WorkerJob?> GetByWorkerIdAsync(string workerId)
+    public async Task<List<WorkerJob>> GetByWorkerIdAsync(string workerId)
     {
-        await foreach (var workerJob in context.WorkerJobs
+        return await context.WorkerJobs
             .Where(wj => wj.WorkerId == workerId)
             .Include(wj => wj.Job)
             .Include(wj => wj.Worker)
-            .AsAsyncEnumerable())
-        {
-            yield return workerJob;
-        }
-        
-        yield return null;
+            .ToListAsync();
     }
 
     public async Task<WorkerJob?> GetAsync(string workerId, string jobId)
@@ -42,16 +34,13 @@ public class WorkerJobEfRepository(PrimaryDbContext context) : IWorkerJobReposit
 
     }
 
-    public async IAsyncEnumerable<WorkerJob?> GetByEmployerIdAsync(string employerId, string jobId)
+    public async Task<List<WorkerJob>> GetByEmployerIdAsync(string employerId, string jobId)
     {
-        await foreach (var workerJob in context.WorkerJobs
+        return await context.WorkerJobs
             .Where(wj => wj.JobId == jobId && wj.Job.EmployerId == employerId)
             .Include(wj => wj.Job)
             .Include(wj => wj.Worker)
-            .AsAsyncEnumerable())
-        {
-            yield return workerJob;
-        }
+            .ToListAsync();
     }
 
     public async Task<WorkerJob?> AddAsync(string workerId, string jobId)
@@ -66,7 +55,7 @@ public class WorkerJobEfRepository(PrimaryDbContext context) : IWorkerJobReposit
         var worker = await context.Workers.FindAsync(workerId);
         if (worker == null) return null;
         
-        workerJob = new WorkerJob()
+        workerJob = new WorkerJob
        {
            JobId = jobId,
            WorkerId = workerId,

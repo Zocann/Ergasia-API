@@ -20,36 +20,35 @@ public class RatingsController(
 {
     public record VerbalRatingDto
     {
-        public string? VerbalRating { get; set; }    
+        public string? VerbalRating { get; set; }
     }
-    
+
     //Get all ratings
 
     [HttpGet("/Employers/{employerId}/Ratings")]
     [AllowAnonymous]
-    public async Task<IEnumerable<EmployerRatingDto?>> GetEmployerRatingsAsync(string employerId)
+    public async Task<List<EmployerRatingDto>> GetEmployerRatingsAsync(string employerId)
     {
-        var result = new List<EmployerRatingDto>();
-        var employerRatings = employerRatingRepository.GetAllByIdAsync(employerId);
+        List<EmployerRatingDto> result = [];
 
-        await foreach (var employerRating in employerRatings)
-        {
-            result.Add(mapper.Map<EmployerRatingDto>(employerRating));
-        }
+        var employerRatings = await employerRatingRepository.GetAllByIdAsync(employerId);
+        if (employerRatings.Count > 0)
+            result.AddRange(from employerRating in employerRatings
+                select mapper.Map<EmployerRatingDto>(employerRating));
+
         return result;
     }
 
     [HttpGet("/Workers/{workerId}/Ratings")]
     [AllowAnonymous]
-    public async Task<IEnumerable<WorkerRatingDto?>> GetWorkerRatingsAsync(string workerId)
+    public async Task<List<WorkerRatingDto>> GetWorkerRatingsAsync(string workerId)
     {
-        var result = new List<WorkerRatingDto>();
-        var workerRatings = workerRatingRepository.GetAllByIdAsync(workerId);
+        List<WorkerRatingDto> result = [];
 
-        await foreach (var workerRating in workerRatings)
-        {
-            result.Add(mapper.Map<WorkerRatingDto>(workerRating));
-        }
+        var workerRatings = await workerRatingRepository.GetAllByIdAsync(workerId);
+        if (workerRatings.Count > 0)
+            result.AddRange(from workerRating in workerRatings select mapper.Map<WorkerRatingDto>(workerRating));
+
         return result;
     }
 
@@ -57,20 +56,18 @@ public class RatingsController(
     [AllowAnonymous]
     public async Task<IEnumerable<WorkerJobDto?>> GetJobRatingsAsync(string jobId)
     {
-        var result = new List<WorkerJobDto>();
-        var workerJobs = workerJobRepository.GetByJobIdAsync(jobId);
+        List<WorkerJobDto> result = [];
 
+        var workerJobs = await workerJobRepository.GetByJobIdAsync(jobId);
         //Filtering WorkerJobs through numerical rating and returning dto
-        await foreach (var workerJob in workerJobs)
-        {
-            if (workerJob?.NumericalRating != null) result.Add(mapper.Map<WorkerJobDto>(workerJob));
-        }
+        if (workerJobs.Count > 0)
+            result.AddRange(from workerJob in workerJobs
+                where workerJob.NumericalRating != null
+                select mapper.Map<WorkerJobDto>(workerJobs));
+
         return result;
     }
-    
-    
-    
-    
+
 
     //Get single rating
     [HttpGet("/Employers/{employerId}/Ratings/{workerId}")]
@@ -152,78 +149,46 @@ public class RatingsController(
             ModelState.AddModelError("Rating", "Rating does not exist");
             return null;
         }
-        
+
         return mapper.Map<WorkerJobDto>(workerJob);
     }
-    
-    
-    
-    
-    
-    
-    
-    
+
+
     //Average ratings
     [HttpGet("/Employers/{employerId}/Average-rating")]
     [AllowAnonymous]
     public async Task<decimal?> GetEmployerAverageRatingAsync(string employerId)
     {
-        var result = new List<EmployerRatingDto>();
-        var employerRatings = employerRatingRepository.GetAllByIdAsync(employerId);
+        var employerRatings = await employerRatingRepository.GetAllByIdAsync(employerId);
 
-        await foreach (var employerRating in employerRatings)
-        {
-            result.Add(mapper.Map<EmployerRatingDto>(employerRating));
-        }
-        
-        if (result.Count == 0) return null;
+        if (employerRatings.Count == 0) return null;
 
-        return (decimal?)result.Average(r => r.NumericalRating);
-
+        return (decimal?)employerRatings.Average(r => r.NumericalRating);
     }
-    
+
     [HttpGet("/Workers/{workerId}/Average-rating")]
     [AllowAnonymous]
     public async Task<decimal?> GetWorkerAverageRatingAsync(string workerId)
     {
-        var result = new List<WorkerRatingDto>();
-        var workerRatings = workerRatingRepository.GetAllByIdAsync(workerId);
+        var workerRatings = await workerRatingRepository.GetAllByIdAsync(workerId);
 
-        await foreach (var workerRating in workerRatings)
-        {
-            result.Add(mapper.Map<WorkerRatingDto>(workerRating));
-        }
-        
-        if (result.Count == 0) return null;
+        if (workerRatings.Count == 0) return null;
 
-        return (decimal?)result.Average(r => r.NumericalRating);
+        return (decimal?)workerRatings.Average(r => r.NumericalRating);
     }
-    
+
     [HttpGet("/Employers/{employerId}/Jobs/{jobId}/AverageRating")]
     [AllowAnonymous]
     public async Task<decimal?> GetJobAverageRatingAsync(string jobId)
     {
-        var result = new List<WorkerJobDto>();
-        var workerJobs = workerJobRepository.GetByJobIdAsync(jobId);
+        var workerJobs = await workerJobRepository.GetByJobIdAsync(jobId);
 
-        //Filtering WorkerJobs through numerical rating and returning dto
-        await foreach (var workerJob in workerJobs)
-        {
-            if (workerJob?.NumericalRating != null) result.Add(mapper.Map<WorkerJobDto>(workerJob));
-        }
-        
-        if (result.Count == 0) return null;
+        if (workerJobs.Count == 0) return null;
 
-        return (decimal?)result.Average(r => r.NumericalRating);
+        return (decimal?)workerJobs.TakeWhile(r => r.NumericalRating != null).Average(r => r.NumericalRating);
     }
-    
-    
-    
-    
-    
-    
-    
-    
+
+
     //Post ratings
 
     [HttpPost("/Employers/{employerId}/Ratings")]
@@ -295,10 +260,7 @@ public class RatingsController(
         Response.Headers.Location = $"/Workers/{workerId}/Ratings/{employerId}";
         return mapper.Map<WorkerRatingDto>(workerRating);
     }
-    
-    
-    
-    
+
 
     [HttpPatch("/Employers/{employerId}/Ratings/{workerId}")]
     [Authorize(Roles = "Worker,Admin")]
@@ -315,7 +277,9 @@ public class RatingsController(
         if (!await IsEmployersPastWorker(employerId, workerId))
             return null;
 
-        var employerRating = await employerRatingRepository.UpdateAsync(employerId, workerId, numericalRating, verbalRating?.VerbalRating);
+        var employerRating =
+            await employerRatingRepository.UpdateAsync(employerId, workerId, numericalRating,
+                verbalRating?.VerbalRating);
 
         if (employerRating == null)
         {
@@ -342,7 +306,8 @@ public class RatingsController(
         if (!await IsEmployersPastWorker(employerId, workerId))
             return null;
 
-        var workerRating = await workerRatingRepository.UpdateAsync(workerId, employerId, numericalRating, verbalRating?.VerbalRating);
+        var workerRating =
+            await workerRatingRepository.UpdateAsync(workerId, employerId, numericalRating, verbalRating?.VerbalRating);
 
         if (workerRating == null)
         {
@@ -353,7 +318,7 @@ public class RatingsController(
 
         return mapper.Map<WorkerRatingDto>(workerRating);
     }
-    
+
     [HttpPatch("/Employers/{employerId}/Jobs/{jobId}/Ratings/{workerId}")]
     [Authorize(Roles = "Worker,Admin")]
     public async Task<WorkerJobDto?> PatchJobRating(string employerId, string jobId, string workerId,
@@ -365,7 +330,8 @@ public class RatingsController(
         if (!await AuthorizeUser(workerId)) return null;
         if (!await ValidateWorkerJob(workerId, employerId, jobId)) return null;
 
-        var workerJob = await workerJobRepository.UpdateRatingAsync(workerId, jobId, numericalRating, verbalRating?.VerbalRating);
+        var workerJob =
+            await workerJobRepository.UpdateRatingAsync(workerId, jobId, numericalRating, verbalRating?.VerbalRating);
 
         if (workerJob == null)
         {
@@ -377,10 +343,7 @@ public class RatingsController(
         Response.StatusCode = 201;
         return mapper.Map<WorkerJobDto>(workerJob);
     }
-    
-    
-    
-    
+
 
     [HttpDelete("/Employers/{employerId}/Ratings/{workerId}")]
     [Authorize(Roles = "Worker,Admin")]
@@ -392,17 +355,17 @@ public class RatingsController(
 
         //Check if the worker did work for this employer
         if (!await IsEmployersPastWorker(employerId, workerId)) return;
-        
-        if (! await employerRatingRepository.DeleteAsync(employerId, workerId))
+
+        if (!await employerRatingRepository.DeleteAsync(employerId, workerId))
         {
             Response.StatusCode = 404;
             ModelState.AddModelError("Rating", "Rating does not exist");
             return;
         }
-        
+
         Response.StatusCode = 204;
     }
-    
+
     [HttpDelete("/Workers/{workerId}/Ratings/{employerId}")]
     [Authorize(Roles = "Employer,Admin")]
     public async Task DeleteWorkerRating(string workerId, string employerId)
@@ -413,14 +376,14 @@ public class RatingsController(
 
         //Check if the employer did employ this worker
         if (!await IsEmployersPastWorker(employerId, workerId)) return;
-        
-        if (! await workerRatingRepository.DeleteAsync(workerId, employerId))
+
+        if (!await workerRatingRepository.DeleteAsync(workerId, employerId))
         {
             Response.StatusCode = 404;
             ModelState.AddModelError("Rating", "Rating does not exist");
             return;
         }
-        
+
         Response.StatusCode = 204;
     }
 
@@ -431,20 +394,20 @@ public class RatingsController(
         if (!IsValidModelState()) return;
 
         if (!await AuthorizeUser(workerId)) return;
-        
+
         if (!await ValidateWorkerJob(workerId, employerId, jobId)) return;
-        
-        if (! await workerJobRepository.DeleteRatingAsync(workerId, jobId))
+
+        if (!await workerJobRepository.DeleteRatingAsync(workerId, jobId))
         {
             Response.StatusCode = 404;
             ModelState.AddModelError("Rating", "Rating does not exist");
             return;
         }
-        
+
         Response.StatusCode = 204;
     }
-    
-    
+
+
     //Helper functions
     private bool IsValidModelState()
     {
@@ -456,12 +419,14 @@ public class RatingsController(
 
     private async Task<bool> IsEmployersPastWorker(string employerId, string workerId)
     {
-        var jobs = jobRepository.GetByEmployerIdAsync(employerId);
+        var jobs = await jobRepository.GetByEmployerIdAsync(employerId);
 
-        await foreach (var job in jobs)
+        if (jobs.Count > 0)
         {
-            if (job == null) continue;
-            if (await workerJobRepository.GetAsync(workerId, job.Id) != null) return true;
+            foreach (var job in jobs)
+            {
+                if (await workerJobRepository.GetAsync(workerId, job.Id) != null) return true;
+            }
         }
 
         Response.StatusCode = 403;

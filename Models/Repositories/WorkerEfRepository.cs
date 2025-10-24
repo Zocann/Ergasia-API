@@ -1,5 +1,6 @@
 using Ergasia_API.Data;
 using Ergasia_API.Models.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ergasia_API.Models.Repositories;
 
@@ -10,12 +11,9 @@ public class WorkerEfRepository(PrimaryDbContext context) : IWorkerRepository
         return await context.Workers.FindAsync(id);
     }
 
-    public async IAsyncEnumerable<Worker?> GetAllAsync()
+    public async Task<List<Worker>> GetAllAsync()
     {
-        await foreach (var worker in context.Workers.AsAsyncEnumerable())
-        {
-            yield return worker;
-        }
+        return await context.Workers.ToListAsync();
     }
 
     public async Task<Worker?> UpdateAsync(Worker worker)

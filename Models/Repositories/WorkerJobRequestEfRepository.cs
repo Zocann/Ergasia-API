@@ -15,28 +15,22 @@ public class WorkerJobRequestEfRepository(PrimaryDbContext context) : IWorkerJob
             .SingleOrDefaultAsync(wjr => wjr.WorkerId == workerId && wjr.JobId == jobId);
     }
 
-    public async IAsyncEnumerable<WorkerJobRequest?> GetByEmployerIdAsync(string employerId, string jobId)
+    public async Task<List<WorkerJobRequest>> GetByEmployerIdAsync(string employerId, string jobId)
     {
-        await foreach (var wjr in context.WorkerJobRequests
+        return await context.WorkerJobRequests
             .Include(wjr => wjr.Worker)
             .Include(wjr => wjr.Job)
             .Where(wjr => wjr.JobId == jobId && wjr.Job.EmployerId == employerId)
-            .AsAsyncEnumerable())
-        {
-            yield return wjr;
-        }
+            .ToListAsync();
     }
     
-    public async IAsyncEnumerable<WorkerJobRequest?> GetByWorkerId(string workerId)
+    public async Task<List<WorkerJobRequest>> GetByWorkerId(string workerId)
     {
-        await foreach (var wjr in context.WorkerJobRequests
+        return await context.WorkerJobRequests
                            .Include(wjr => wjr.Worker)
                            .Include(wjr => wjr.Job)
                            .Where(wjr => wjr.WorkerId == workerId)
-                           .AsAsyncEnumerable())
-        {
-            yield return wjr;
-        }
+                           .ToListAsync();
     }
 
     public async Task<WorkerJobRequest?> AddAsync(string workerId, string jobId, string? message)

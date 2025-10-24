@@ -32,14 +32,14 @@ public class UserEfRepository(UserManager<User> userManager, IMapper mapper, ITo
         {
             case "Worker":
                 var worker = mapper.Map<Worker>(registerDto);
-                worker.UserName = worker.Email;
+                worker.UserName = worker.Email?.ToLowerInvariant();
                 result = await userManager.CreateAsync(worker, registerDto.Password);
                 if(result.Succeeded) await userManager.AddToRolesAsync(worker, new List<string> { "Worker" });
                 return result;
             
             case "Employer":
                 var employer = mapper.Map<Employer>(registerDto);
-                employer.UserName = employer.Email;
+                employer.UserName = employer.Email?.ToLowerInvariant();
                 result = await userManager.CreateAsync(employer, registerDto.Password);
                 if(result.Succeeded) await userManager.AddToRolesAsync(employer, new List<string> { "Employer" });
                 return result;
@@ -56,7 +56,7 @@ public class UserEfRepository(UserManager<User> userManager, IMapper mapper, ITo
 
     public async Task<User?> LoginAsync(LoginDto loginDto)
     {
-        var account = await userManager.FindByEmailAsync(loginDto.Email);
+        var account = await userManager.FindByNameAsync(loginDto.Email.ToLowerInvariant());
 
         if (account != null && await userManager.CheckPasswordAsync(account, loginDto.Password)) return account;
         

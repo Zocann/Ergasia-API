@@ -7,36 +7,24 @@ namespace Ergasia_API.Models.Repositories;
 
 public class JobEfRepository(PrimaryDbContext context, IMapper mapper) : IJobRepository
 {
-    public async IAsyncEnumerable<Job?> GetAllAsync()
+    public async Task<List<Job>> GetAllAsync()
     {
-        await foreach (var job in context.Jobs.AsAsyncEnumerable())
-        {
-            yield return job;
-        }
+        return await context.Jobs.ToListAsync();
     }
     
     public async Task<Job?> GetByIdAsync(string id)
     {
-        var jobs = GetAllAsync();
+        var jobs = await GetAllAsync();
         
-        await foreach (var job in jobs)
-        {
-            if (job == null) return null;
-            if (job.Id == id) return job;
-        }
-        
-        return null;
+        return jobs.Count == 0 ? null : jobs.FirstOrDefault(job => job.Id == id);
     }
 
-    public async IAsyncEnumerable<Job?> GetByEmployerIdAsync(string employerId)
+    public async Task<List<Job>> GetByEmployerIdAsync(string employerId)
     {
-        await foreach (var job in context.Jobs
+        return await context.Jobs
             .Include(j => j.Employer)
             .Where(j => j.EmployerId == employerId)
-            .AsAsyncEnumerable())
-        {
-            yield return job;
-        }
+            .ToListAsync();
     }
 
     public async Task<Job> AddAsync(Job job)

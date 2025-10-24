@@ -6,16 +6,14 @@ namespace Ergasia_API.Models.Repositories;
 
 public class WorkerRatingEfRepository(PrimaryDbContext context) : IWorkerRatingRepository
 {
-    public async IAsyncEnumerable<WorkerRating?> GetAllByIdAsync(string workerId)
+    public async Task<List<WorkerRating>> GetAllByIdAsync(string workerId)
     {
-        await foreach (var workerRating in context.WorkerRatings
+        return await context.WorkerRatings
             .Where(wr => wr.WorkerId == workerId)
             .Include(wr => wr.Employer)
             .Include(wr => wr.Worker)
-            .AsAsyncEnumerable())
-        {
-            yield return workerRating;
-        }
+            .ToListAsync();
+
     }
 
     public async Task<WorkerRating?> GetAsync(string workerId, string employerId)
