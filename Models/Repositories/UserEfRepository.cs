@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Ergasia_API.Models.Repositories;
 
-public class UserEfRepository(UserManager<User> userManager, IMapper mapper, ITokenService tokenService) : IUserRepository
+public class UserEfRepository(UserManager<User> userManager, IMapper mapper) : IUserRepository
 {
     public async Task<User?> GetByIdAsync(string id)
     {
@@ -77,17 +77,6 @@ public class UserEfRepository(UserManager<User> userManager, IMapper mapper, ITo
         if (account == null) return null;
 
         return await userManager.DeleteAsync(account);
-    }
-
-    public async Task<User> SetRefreshToken(User user)
-    {
-        var refreshToken = tokenService.GenerateRefreshToken();
-        user.RefreshToken = refreshToken;
-        user.RefreshTokenExpiration = DateTime.UtcNow.AddDays(3);
-        
-        await userManager.UpdateAsync(user);
-
-        return user;
     }
 
     public async Task<User?> GetByRefreshTokenAsync(string refreshToken)

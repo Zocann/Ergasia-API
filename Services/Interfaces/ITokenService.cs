@@ -4,6 +4,7 @@ namespace Ergasia_API.Services.Interfaces;
 
 public interface ITokenService
 {
-    public Task<string> GenerateToken(User user);
+    public Task<string> GenerateAccessToken(User user);
     public string GenerateRefreshToken();
+    public Task<bool> SetRefreshToken(User user);
 }

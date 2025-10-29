@@ -95,12 +95,12 @@ public class UsersController(IUserRepository repository, ITokenService tokenServ
         }
         
         var user = await repository.GetByEmailAsync(registerDto.Email);
-        if (user == null) throw new Exception("Unable to create user");
+        if (user == null) throw new ApplicationException("Unable to create user");
         
-        user = await repository.SetRefreshToken(user);
+        if (!await tokenService.SetRefreshToken(user)) throw new ApplicationException("Unable to set refresh token");
         
         var userDto = mapper.Map<UserDto>(user);
-        userDto.AccessToken = await tokenService.GenerateToken(user);
+        userDto.AccessToken = await tokenService.GenerateAccessToken(user);
         
         Response.StatusCode = 201;
         Response.Headers.Location = $"/Employers/{user.Id}";
@@ -122,11 +122,11 @@ public class UsersController(IUserRepository repository, ITokenService tokenServ
             ModelState.AddModelError("identity", "Invalid credentials");
             return null;
         }
-        
-        user = await repository.SetRefreshToken(user);
+
+        if (!await tokenService.SetRefreshToken(user)) throw new ApplicationException("Unable to set refresh token");
         
         var userDto = mapper.Map<UserDto>(user);
-        userDto.AccessToken = await tokenService.GenerateToken(user);
+        userDto.AccessToken = await tokenService.GenerateAccessToken(user);
         
         Response.Headers.Location = $"/Account/{user.Id}";
         return userDto;
@@ -300,10 +300,11 @@ public class UsersController(IUserRepository repository, ITokenService tokenServ
             Response.StatusCode = 401;
             return null;
         }
+
+        if (!await tokenService.SetRefreshToken(user)) throw new ApplicationException("Unable to set refresh token");
         
-        user = await repository.SetRefreshToken(user);
         var userDto = mapper.Map<UserDto>(user);
-        userDto.AccessToken = await tokenService.GenerateToken(user);
+        userDto.AccessToken = await tokenService.GenerateAccessToken(user);
         
         return userDto;
     }
