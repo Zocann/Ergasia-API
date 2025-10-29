@@ -284,7 +284,6 @@ public class UsersController(IUserRepository repository, ITokenService tokenServ
     public async Task<UserDto?> RefreshTokenAsync()
     {
         const string tokenName = "refreshToken";
-        var headers = Request.Headers;
         var refreshToken = Request.Cookies[tokenName];
         
         if (refreshToken == null)
