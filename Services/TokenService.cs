@@ -55,7 +55,7 @@ public class TokenService(IUserRepository userRepository) : ITokenService
 
         var result = await userRepository.UpdateAsync(user);
         
-        if(result != null && result.Succeeded) return false;
-        return true;
+        if(result != null && result.Succeeded) return true;
+        return false;
     }
 }
