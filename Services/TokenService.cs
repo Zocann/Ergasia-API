@@ -11,7 +11,7 @@ using Exception = System.Exception;
 
 namespace Ergasia_API.Services;
 
-public class TokenService(UserManager<User> accountManager, IUserRepository userRepository) : ITokenService
+public class TokenService(IUserRepository userRepository) : ITokenService
 {
     public async Task<string> GenerateAccessToken(User user)
     {

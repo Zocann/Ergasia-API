@@ -15,7 +15,7 @@ public abstract class BaseRating
     public DateTime Date { get; set; } = DateTime.Now;
     
     //Navigational
-    public Employer Employer { get; set; }
+    public required Employer Employer { get; set; }
     
-    public Worker Worker { get; set; }
+    public required Worker Worker { get; set; }
 }

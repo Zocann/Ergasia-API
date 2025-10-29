@@ -16,5 +16,5 @@ public class Job
     public required string EmployerId { get; set; }
     
     //Navigation property
-    public Employer Employer { get; set; }
+    public required Employer Employer { get; set; }
 }

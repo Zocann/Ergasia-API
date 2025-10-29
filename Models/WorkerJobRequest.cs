@@ -13,6 +13,6 @@ public class WorkerJobRequest
     public string? Message { get; set; }
     
     // Navigation
-    public Worker Worker { get; set; }
-    public Job Job { get; set; }
+    public required Worker Worker { get; set; }
+    public required Job Job { get; set; }
 }
