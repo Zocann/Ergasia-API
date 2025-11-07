@@ -29,7 +29,8 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<PrimaryDbContext>(options =>
     options.UseSqlServer(
-        Environment.GetEnvironmentVariable("DATABASE_CONNECTION_STRING"),
+        //Environment.GetEnvironmentVariable("DATABASE_CONNECTION_STRING"),
+        builder.Configuration.GetConnectionString("DatabaseConnection"),
         sqlOptions => sqlOptions.EnableRetryOnFailure()));
 
 builder.Services.AddScoped<IUserRepository, UserEfRepository>();
@@ -50,7 +51,8 @@ builder.Services.AddScoped<IProfilePictureService, ProfilePictureService>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        var tokenKey = Environment.GetEnvironmentVariable("TOKEN_KEY") ?? throw new Exception("Token key not found");
+        //var tokenKey = Environment.GetEnvironmentVariable("TOKEN_KEY") ?? throw new Exception("Token key not found");
+        var tokenKey = builder.Configuration["TokenKey"] ?? throw new Exception("Token key not found");
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
@@ -120,7 +122,8 @@ app.UseCors(policy => policy
     .AllowAnyHeader()
     .AllowAnyMethod()
     .AllowCredentials()
-    .WithOrigins("https://ergasia-webapp.azurewebsites.net")
+    //.WithOrigins("https://ergasia-webapp.azurewebsites.net")
+    .WithOrigins("https://localhost:7001")
 );
 
 

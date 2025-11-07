@@ -10,7 +10,8 @@ public class ProfilePictureService : IProfilePictureService
 
     public ProfilePictureService(IConfiguration configuration)
     {
-        var connectionString = Environment.GetEnvironmentVariable("STORAGE_CONNECTION_STRING");
+        //var connectionString = Environment.GetEnvironmentVariable("STORAGE_CONNECTION_STRING");
+        var connectionString = configuration.GetConnectionString("StorageConnection");
         var containerName = configuration["AzureStorage:ProfilePictures"];
         _containerClient = new BlobContainerClient(connectionString, containerName);
         _containerClient.CreateIfNotExists();

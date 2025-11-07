@@ -177,7 +177,7 @@ public class RatingsController(
         return (decimal?)workerRatings.Average(r => r.NumericalRating);
     }
 
-    [HttpGet("/Employers/{employerId}/Jobs/{jobId}/AverageRating")]
+    [HttpGet("/Employers/{employerId}/Jobs/{jobId}/Average-rating")]
     [AllowAnonymous]
     public async Task<decimal?> GetJobAverageRatingAsync(string jobId)
     {
