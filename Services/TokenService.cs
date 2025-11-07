@@ -15,8 +15,8 @@ public class TokenService(IUserRepository userRepository, IConfiguration config)
 {
     public async Task<string> GenerateAccessToken(User user)
     {
-        //var tokenKey = Environment.GetEnvironmentVariable("TOKEN_KEY") ?? throw new Exception("Token key not found");
-        var tokenKey = config["TokenKey"] ?? throw new Exception("Token key not found");
+        var tokenKey = Environment.GetEnvironmentVariable("TOKEN_KEY") ?? throw new Exception("Token key not found");
+        //var tokenKey = config["TokenKey"] ?? throw new Exception("Token key not found");
         if (tokenKey.Length < 64) throw new Exception("Token key needs to be at least 64 characters long");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenKey));
 
