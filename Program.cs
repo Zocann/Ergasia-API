@@ -11,6 +11,8 @@ using Ergasia_API.Models.Interfaces;
 using Ergasia_API.Models.Repositories;
 using Ergasia_API.Services;
 using Ergasia_API.Services.Interfaces;
+using Ergasia_API.Services.Interfaces.Model;
+using Ergasia_API.Services.Model;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -20,10 +22,7 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
 builder.Services.AddControllers();
-
-builder.Services.AddOpenApi();
 
 builder.Services.AddSwaggerGen();
 
@@ -41,6 +40,15 @@ builder.Services.AddScoped<IWorkerJobRepository, WorkerJobEfRepository>();
 builder.Services.AddScoped<IWorkerJobRequestRepository, WorkerJobRequestEfRepository>();
 builder.Services.AddScoped<IEmployerRatingRepository, EmployerRatingEfRepository>();
 builder.Services.AddScoped<IWorkerRatingRepository, WorkerRatingEfRepository>();
+
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IEmployerService, EmployerService>();
+builder.Services.AddScoped<IWorkerService, WorkerService>();
+builder.Services.AddScoped<IJobService, JobService>();
+builder.Services.AddScoped<IWorkerJobService, WorkerJobService>();
+builder.Services.AddScoped<IWorkerJobRequestService, WorkerJobRequestService>();
+builder.Services.AddScoped<IEmployerRatingService, EmployerRatingService>();
+builder.Services.AddScoped<IWorkerRatingService, WorkerRatingService>();
 
 builder.Services.AddScoped<IAuthorizationHandler, SameUserOrAdminHandler>();
 
@@ -76,40 +84,49 @@ builder.Services.AddIdentityCore<User>(options =>
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<PrimaryDbContext>();
 
-builder.Services.AddAutoMapper(cfg => 
+builder.Services.AddAutoMapper(cfg =>
 {
+    cfg.CreateMap<Job, Job>();
+    cfg.CreateMap<Employer, Employer>();
+    cfg.CreateMap<Worker, Worker>();
+    cfg.CreateMap<EmployerRating, EmployerRating>();
+    cfg.CreateMap<WorkerRating, WorkerRating>();
+    cfg.CreateMap<WorkerJob, WorkerJob>();
+    cfg.CreateMap<User, User>();
+    cfg.CreateMap<WorkerJobRequest, WorkerJobRequest>();
+
     cfg.CreateMap<User, UserDto>().ReverseMap();
     cfg.CreateMap<Employer, EmployerDto>().ReverseMap();
     cfg.CreateMap<Worker, WorkerDto>().ReverseMap();
     cfg.CreateMap<Job, JobDto>().ReverseMap();
-    cfg.CreateMap<Job, Job>();
     cfg.CreateMap<UpdateUserDto, User>();
     cfg.CreateMap<RegisterDto, Employer>().ReverseMap();
     cfg.CreateMap<RegisterDto, Worker>().ReverseMap();
-    
-    
+    cfg.CreateMap<Job, Job>().ReverseMap();
+
+
     cfg.CreateMap<WorkerRating, WorkerRatingDto>()
-        .ForMember(vrd => vrd.WorkerDto, opt 
+        .ForMember(vrd => vrd.WorkerDto, opt
             => opt.MapFrom(vr => vr.Worker))
-        .ForMember(vrd => vrd.EmployerDto, opt 
+        .ForMember(vrd => vrd.EmployerDto, opt
             => opt.MapFrom(vr => vr.Employer));
-    
+
     cfg.CreateMap<EmployerRating, EmployerRatingDto>()
-        .ForMember(erd => erd.WorkerDto, opt 
+        .ForMember(erd => erd.WorkerDto, opt
             => opt.MapFrom(er => er.Worker))
-        .ForMember(erd => erd.EmployerDto, opt 
+        .ForMember(erd => erd.EmployerDto, opt
             => opt.MapFrom(er => er.Employer));
-    
+
     cfg.CreateMap<WorkerJob, WorkerJobDto>()
-        .ForMember(jrd => jrd.WorkerDto, opt 
+        .ForMember(jrd => jrd.WorkerDto, opt
             => opt.MapFrom(wj => wj.Worker))
-        .ForMember(jrd => jrd.JobDto, opt 
+        .ForMember(jrd => jrd.JobDto, opt
             => opt.MapFrom(wj => wj.Job));
-    
+
     cfg.CreateMap<WorkerJobRequest, JobRequestDto>()
-        .ForMember(jrd => jrd.WorkerDto, opt 
+        .ForMember(jrd => jrd.WorkerDto, opt
             => opt.MapFrom(wj => wj.Worker))
-        .ForMember(jrd => jrd.JobDto, opt 
+        .ForMember(jrd => jrd.JobDto, opt
             => opt.MapFrom(wj => wj.Job));
 });
 
@@ -130,11 +147,10 @@ app.UseCors(policy => policy
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
-        options.SwaggerEndpoint("/openapi/v1.json", "API v1");
+        options.SwaggerEndpoint("https://localhost:7000/swagger/v1/swagger.json", "API v1");
     });
 }
 
