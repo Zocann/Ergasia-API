@@ -11,18 +11,15 @@ public class EmployerEfRepository(PrimaryDbContext context) : IEmployerRepositor
         return await context.Employers.FindAsync(id);
     }
 
-    public async Task<List<Employer>> GetAllAsync()
+    public async Task<IEnumerable<Employer>> GetAllAsync()
     {
         return await context.Employers.ToListAsync();
     }
     
     
-    public async Task<Employer?> UpdateAsync(Employer employer)
+    public async Task UpdateAsync(Employer employer)
     {
-        if (await GetByIdAsync(employer.Id) == null) return null;
-        
         context.Employers.Update(employer);
         await context.SaveChangesAsync();
-        return employer;
     }
 }

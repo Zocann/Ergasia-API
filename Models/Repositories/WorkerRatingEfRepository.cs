@@ -6,7 +6,7 @@ namespace Ergasia_API.Models.Repositories;
 
 public class WorkerRatingEfRepository(PrimaryDbContext context) : IWorkerRatingRepository
 {
-    public async Task<List<WorkerRating>> GetAllByIdAsync(string workerId)
+    public async Task<IEnumerable<WorkerRating>> GetAllByWorkerIdAsync(string workerId)
     {
         return await context.WorkerRatings
             .Where(wr => wr.WorkerId == workerId)
@@ -26,51 +26,27 @@ public class WorkerRatingEfRepository(PrimaryDbContext context) : IWorkerRatingR
     }
 
 
-    public async Task<WorkerRating?> AddAsync(string workerId, string employerId, int numericalRating, string? verbalRating)
+    public async Task AddAsync(WorkerRating workerRating)
     {
-        if (await GetAsync(workerId, employerId) != null) return null;
-        
-        var employer = await context.Employers.FindAsync(employerId);
-        var worker = await context.Workers.FindAsync(workerId);
-        
-        if (worker == null || employer == null) return null;
-        
-        var workerRepository = new WorkerRating()
-        {
-            NumericalRating = numericalRating,
-            VerbalRating = verbalRating,
-            EmployerId = employerId,
-            WorkerId = workerId,
-            Employer = employer,
-            Worker = worker,
-        };
-        
-        await context.WorkerRatings.AddAsync(workerRepository);
+        await context.WorkerRatings.AddAsync(workerRating);
         await context.SaveChangesAsync();
-        
-        return workerRepository;
     }
 
-    public async Task<WorkerRating?> UpdateAsync(string workerId, string employerId, int numericalRating, string? verbalRating)
+    public async Task UpdateAsync(WorkerRating newWorkerRating)
     {
-        var workerRating = await GetAsync(workerId, employerId);
-        if (workerRating == null) return null;
+        var workerRating = await GetAsync(newWorkerRating.WorkerId, newWorkerRating.EmployerId);
+        if (workerRating == null) return;
         
-        workerRating.NumericalRating = numericalRating;
-        workerRating.VerbalRating = verbalRating;
+        workerRating.NumericalRating = newWorkerRating.NumericalRating;
+        workerRating.VerbalRating = newWorkerRating.VerbalRating;
         workerRating.Date = DateTime.Now;
 
         await context.SaveChangesAsync();
-        return workerRating;
     }
 
-    public async Task<bool> DeleteAsync(string workerId, string employerId)
+    public async Task DeleteAsync(WorkerRating workerRating)
     {
-        var workerRating = await GetAsync(workerId, employerId);
-        if (workerRating == null) return false;
-        
         context.WorkerRatings.Remove(workerRating);
         await context.SaveChangesAsync();
-        return true;
     }
 }

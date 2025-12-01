@@ -1,6 +1,9 @@
 using AutoMapper;
+using Ergasia_API.Data.Enums;
 using Ergasia_API.DTOs.Employer;
+using Ergasia_API.Helpers;
 using Ergasia_API.Models.Interfaces;
+using Ergasia_API.Services.Interfaces.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,74 +11,57 @@ namespace Ergasia_API.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class EmployersController(IEmployerRepository repository, IMapper mapper, 
+public class EmployersController(IEmployerService employerService, IMapper mapper, 
     IAuthorizationService authorizationService) : ControllerBase
 {
     [HttpGet]
-    public async Task<List<EmployerDto>> GetAllAsync()
+    public async Task<IEnumerable<EmployerDto>?> GetAllAsync()
     {
-        var employers = await repository.GetAllAsync();
-        List<EmployerDto> result = [];
-        if (employers.Count > 0)
-        {
-            result.AddRange(employers.Select(mapper.Map<EmployerDto>));
-        }
-        return result;
+        var serviceResult = await employerService.GetAllAsync();
+        if (!serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [HttpGet("{id}")]
     [Authorize]
     public async Task<EmployerDto?> GetAsync(string id)
     {
-        var employer = await repository.GetByIdAsync(id);
-        
-        if (employer != null) return mapper.Map<EmployerDto>(employer);
-        
-        ModelState.AddModelError("Id", "Employer with provided Id does not exist");
-        Response.StatusCode = 404;
-        return null;
+        var serviceResult = await employerService.GetByIdAsync(id);
+        if (!serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [Authorize(Roles = "Employer,Admin")]
     [HttpPatch("{id}")]
     public async Task<EmployerDto?> PatchAsync(string id, EmployerDto employerDto)
     {
-        if (!ModelState.IsValid)
+        if (! ModelState.IsValid || ! IdsMatch(id, employerDto.Id))
         {
-            Response.StatusCode = 400;
+            SetStatusCodeTo(400);
             return null;
         }
-        
-        if (id != employerDto.Id)
-        {
-            Response.StatusCode = 400;
-            ModelState.AddModelError("Id", "UserId does not match Id in route");
-            return null;
-        }
-        
-        var authorizationResult = await authorizationService.AuthorizeAsync(User, id, "SameUserOrAdmin");
-        if (!authorizationResult.Succeeded)
-        {
-            Response.StatusCode = 403;
-            return null;
-        }
-        
-        var employer = await repository.GetByIdAsync(id);
 
-        if (employer == null)
+        if (!await IsSameUserOrAdminAsync(id))
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "Employer does not exist");
+            SetStatusCodeTo(401);
             return null;
         }
         
-        employerDto.IsActive = employer.IsActive;
-        employerDto.RefreshToken = employer.RefreshToken;
-        employerDto.RefreshTokenExpiration = employer.RefreshTokenExpiration;
-        employerDto.PictureUrl = employer.PictureUrl;
-        employerDto.DateOfRegistration = employer.DateOfRegistration;
-        
-        employer = await repository.UpdateAsync(mapper.Map(employerDto, employer));
-        return mapper.Map<EmployerDto>(employer);
+        var serviceResult = await employerService.UpdateAsync(employerDto);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
+    
+    private static bool IdsMatch(string firstId, string secondId)
+    {
+        return firstId == secondId;
+    }
+
+    private async Task<bool> IsSameUserOrAdminAsync(string id)
+    {
+        var authorizationResult = await authorizationService.AuthorizeAsync(User, id, "SameUserOrAdmin");
+        return authorizationResult.Succeeded;
+    }
+    
+    private void SetStatusCodeTo(int statusCode) => Response.StatusCode = statusCode;
 }

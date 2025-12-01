@@ -19,63 +19,33 @@ public class UserEfRepository(UserManager<User> userManager, IMapper mapper) : I
         return userManager.FindByEmailAsync(email);
     }
 
-    public async Task<IList<string>> GetRolesAsync(User user)
+    public async Task<IEnumerable<string>> GetRolesAsync(User user)
     {
         return await userManager.GetRolesAsync(user);
     }
-
-    public async Task<IdentityResult> RegisterAsync(RegisterDto registerDto, string userType)
+    
+    public async Task<IdentityResult> AddWorkerAsync(Worker worker, string password)
     {
-        IdentityResult result;
-        
-        switch (userType)
-        {
-            case "Worker":
-                var worker = mapper.Map<Worker>(registerDto);
-                worker.UserName = worker.Email?.ToLowerInvariant();
-                result = await userManager.CreateAsync(worker, registerDto.Password);
-                if(result.Succeeded) await userManager.AddToRolesAsync(worker, new List<string> { "Worker" });
-                return result;
-            
-            case "Employer":
-                var employer = mapper.Map<Employer>(registerDto);
-                employer.UserName = employer.Email?.ToLowerInvariant();
-                result = await userManager.CreateAsync(employer, registerDto.Password);
-                if(result.Succeeded) await userManager.AddToRolesAsync(employer, new List<string> { "Employer" });
-                return result;
-            
-            default:
-                return IdentityResult.Failed();
-        }
+        return await userManager.CreateAsync(worker, password);
     }
 
-    public async Task<IdentityResult?> AddRolesAsync(User user, List<string> roles)
+    public async Task<IdentityResult> AddEmployerAsync(Employer employer, string password)
+    {
+        return await userManager.CreateAsync(employer, password);
+    }
+
+    public async Task<IdentityResult> AddRolesAsync(User user, List<string> roles)
     {
         return await userManager.AddToRolesAsync(user, roles);
     }
 
-    public async Task<User?> LoginAsync(LoginDto loginDto)
+    public async Task<IdentityResult> UpdateAsync(User user)
     {
-        var account = await userManager.FindByNameAsync(loginDto.Email.ToLowerInvariant());
-
-        if (account != null && await userManager.CheckPasswordAsync(account, loginDto.Password)) return account;
-        
-        return null;
-    }
-
-    public async Task<IdentityResult?> UpdateAsync(User user)
-    {
-        if (await GetByIdAsync(user.Id) == null) return null;
-        
         return await userManager.UpdateAsync(user);
     }
 
-    public async Task<IdentityResult?> DeleteAsync(string id)
+    public async Task<IdentityResult> DeleteAsync(User account)
     {
-        var account = await userManager.FindByIdAsync(id);
-
-        if (account == null) return null;
-
         return await userManager.DeleteAsync(account);
     }
 
@@ -83,5 +53,10 @@ public class UserEfRepository(UserManager<User> userManager, IMapper mapper) : I
     {
         return await userManager.Users.FirstOrDefaultAsync(a =>
             a.RefreshToken == refreshToken && a.RefreshTokenExpiration > DateTime.UtcNow);
+    }
+
+    public async Task<bool> CheckPasswordAsync(User user, string password)
+    {
+        return await userManager.CheckPasswordAsync(user, password);
     }
 }

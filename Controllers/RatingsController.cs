@@ -1,8 +1,9 @@
 using System.ComponentModel.DataAnnotations;
-using AutoMapper;
+using Ergasia_API.Data;
 using Ergasia_API.DTOs.Job;
 using Ergasia_API.DTOs.Rating;
-using Ergasia_API.Models.Interfaces;
+using Ergasia_API.Helpers;
+using Ergasia_API.Services.Interfaces.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,11 +12,9 @@ namespace Ergasia_API.Controllers;
 [ApiController]
 [Route("[controller]")]
 public class RatingsController(
-    IJobRepository jobRepository,
-    IEmployerRatingRepository employerRatingRepository,
-    IWorkerRatingRepository workerRatingRepository,
-    IWorkerJobRepository workerJobRepository,
-    IMapper mapper,
+    IWorkerJobService workerJobService,
+    IEmployerRatingService employerRatingService,
+    IWorkerRatingService workerRatingService,
     IAuthorizationService authorizationService) : ControllerBase
 {
     public record VerbalRatingDto
@@ -27,45 +26,29 @@ public class RatingsController(
 
     [HttpGet("/Employers/{employerId}/Ratings")]
     [AllowAnonymous]
-    public async Task<List<EmployerRatingDto>> GetEmployerRatingsAsync(string employerId)
+    public async Task<IEnumerable<EmployerRatingDto>?> GetEmployerRatingsAsync(string employerId)
     {
-        List<EmployerRatingDto> result = [];
-
-        var employerRatings = await employerRatingRepository.GetAllByIdAsync(employerId);
-        if (employerRatings.Count > 0)
-            result.AddRange(from employerRating in employerRatings
-                select mapper.Map<EmployerRatingDto>(employerRating));
-
-        return result;
+        var serviceResult = await employerRatingService.GetAllAsync(employerId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpGet("/Workers/{workerId}/Ratings")]
     [AllowAnonymous]
-    public async Task<List<WorkerRatingDto>> GetWorkerRatingsAsync(string workerId)
+    public async Task<IEnumerable<WorkerRatingDto>?> GetWorkerRatingsAsync(string workerId)
     {
-        List<WorkerRatingDto> result = [];
-
-        var workerRatings = await workerRatingRepository.GetAllByIdAsync(workerId);
-        if (workerRatings.Count > 0)
-            result.AddRange(from workerRating in workerRatings select mapper.Map<WorkerRatingDto>(workerRating));
-
-        return result;
+        var serviceResult = await workerRatingService.GetAllAsync(workerId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpGet("/Employers/{employerId}/Jobs/{jobId}/Ratings")]
     [AllowAnonymous]
-    public async Task<IEnumerable<WorkerJobDto?>> GetJobRatingsAsync(string jobId)
+    public async Task<IEnumerable<WorkerJobDto>?> GetJobRatingsAsync(string jobId)
     {
-        List<WorkerJobDto> result = [];
-
-        var workerJobs = await workerJobRepository.GetByJobIdAsync(jobId);
-        //Filtering WorkerJobs through numerical rating and returning dto
-        if (workerJobs.Count > 0)
-            result.AddRange(from workerJob in workerJobs
-                where workerJob.NumericalRating != null
-                select mapper.Map<WorkerJobDto>(workerJobs));
-
-        return result;
+        var serviceResult = await workerJobService.GetAllByJobIdAsync(jobId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
 
@@ -74,118 +57,56 @@ public class RatingsController(
     [AllowAnonymous]
     public async Task<EmployerRatingDto?> GetEmployerRatingAsync(string employerId, string workerId)
     {
-        var employerRating = await employerRatingRepository.GetAsync(employerId, workerId);
-
-        if (employerRating == null)
-        {
-            Response.StatusCode = 404;
-            return null;
-        }
-
-        if (employerRating.EmployerId == employerId) return mapper.Map<EmployerRatingDto>(employerRating);
-
-        Response.StatusCode = 400;
-        ModelState.AddModelError("Employer id", "Employer id in route does not match employer id in rating record");
-        return null;
+        var serviceResult = await employerRatingService.GetAsync(employerId, workerId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpGet("/Workers/{workerId}/Ratings/{employerId}")]
     [AllowAnonymous]
     public async Task<WorkerRatingDto?> GetWorkerRatingAsync(string workerId, string employerId)
     {
-        var workerRating = await workerRatingRepository.GetAsync(workerId, employerId);
-
-        if (workerRating == null)
-        {
-            Response.StatusCode = 404;
-            return null;
-        }
-
-        if (workerRating.WorkerId == workerId) return mapper.Map<WorkerRatingDto>(workerRating);
-
-        Response.StatusCode = 400;
-        ModelState.AddModelError("Worker id", "Worker id in route does not match worker id in rating record");
-        return null;
+        var serviceResult = await workerRatingService.GetAsync(workerId, employerId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpGet("/Employers/{employerId}/Jobs/{jobId}/Ratings/{workerId}")]
     [AllowAnonymous]
     public async Task<WorkerJobDto?> GetJobRatingAsync(string employerId, string jobId, string workerId)
     {
-        var job = await jobRepository.GetByIdAsync(jobId);
-
-        if (job == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Job", "Job not found");
-            return null;
-        }
-
-        if (job.EmployerId != employerId)
-        {
-            Response.StatusCode = 403;
-            ModelState.AddModelError("Record", "Job does not belong to this employer");
-            return null;
-        }
-
-        var workerJob = await workerJobRepository.GetAsync(workerId, jobId);
-
-        if (workerJob == null)
-        {
-            Response.StatusCode = 404;
-            return null;
-        }
-
-        if (workerJob.JobId != jobId)
-        {
-            Response.StatusCode = 403;
-            ModelState.AddModelError("Record", "Rating does not belong to this job");
-            return null;
-        }
-
-        if (workerJob.NumericalRating == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Rating", "Rating does not exist");
-            return null;
-        }
-
-        return mapper.Map<WorkerJobDto>(workerJob);
+        var serviceResult = await workerJobService.GetAsync(workerId, jobId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
 
     //Average ratings
     [HttpGet("/Employers/{employerId}/Average-rating")]
     [AllowAnonymous]
-    public async Task<decimal?> GetEmployerAverageRatingAsync(string employerId)
+    public async Task<float?> GetEmployerAverageRatingAsync(string employerId)
     {
-        var employerRatings = await employerRatingRepository.GetAllByIdAsync(employerId);
-
-        if (employerRatings.Count == 0) return null;
-
-        return (decimal?)employerRatings.Average(r => r.NumericalRating);
+        var serviceResult = await employerRatingService.GetAverageAsync(employerId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpGet("/Workers/{workerId}/Average-rating")]
     [AllowAnonymous]
-    public async Task<decimal?> GetWorkerAverageRatingAsync(string workerId)
+    public async Task<float?> GetWorkerAverageRatingAsync(string workerId)
     {
-        var workerRatings = await workerRatingRepository.GetAllByIdAsync(workerId);
-
-        if (workerRatings.Count == 0) return null;
-
-        return (decimal?)workerRatings.Average(r => r.NumericalRating);
+        var serviceResult = await workerRatingService.GetAverageAsync(workerId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpGet("/Employers/{employerId}/Jobs/{jobId}/Average-rating")]
     [AllowAnonymous]
-    public async Task<decimal?> GetJobAverageRatingAsync(string jobId)
+    public async Task<float?> GetJobAverageRatingAsync(string jobId)
     {
-        var workerJobs = await workerJobRepository.GetByJobIdAsync(jobId);
-
-        if (workerJobs.Count == 0) return null;
-
-        return (decimal?)workerJobs.TakeWhile(r => r.NumericalRating != null).Average(r => r.NumericalRating);
+        var serviceResult = await workerJobService.GetAverageRatingByJobIdAsync(jobId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
 
@@ -199,34 +120,22 @@ public class RatingsController(
         int numericalRating,
         [FromBody] VerbalRatingDto? verbalRating)
     {
-        if (!IsValidModelState()) return null;
-
-        if (!await AuthorizeUser(workerId)) return null;
-
-        //Check if the worker did work for this employer
-        if (!await IsEmployersPastWorker(employerId, workerId))
+        if (!ModelState.IsValid)
+        {
+            SetStatusCodeTo(400);
             return null;
-
-        if (await employerRatingRepository.GetAsync(employerId, workerId) != null)
-        {
-            Response.StatusCode = 400;
-            ModelState.AddModelError("Record", "Rating already exists");
         }
-
-        var newEmployerRating =
-            await employerRatingRepository.AddAsync(employerId, workerId, numericalRating, verbalRating?.VerbalRating);
-
-        if (newEmployerRating == null)
+        if (!await IsSameUserOrAdminAsync(workerId))
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Id", "Employer or worker with provided id does not exist");
+            SetStatusCodeTo(401);
             return null;
         }
 
-        Response.StatusCode = 201;
-
-        Response.Headers.Location = $"/Employers/{employerId}/Ratings/{workerId}";
-        return mapper.Map<EmployerRatingDto>(newEmployerRating);
+        var ratingDto = CreateRatingDto(employerId, workerId, numericalRating, verbalRating?.VerbalRating);
+        
+        var serviceResult = await employerRatingService.AddAsync(ratingDto);
+        if (!serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpPost("/Workers/{workerId}/Ratings")]
@@ -237,28 +146,21 @@ public class RatingsController(
         int numericalRating,
         [FromBody] VerbalRatingDto? verbalRating)
     {
-        if (!IsValidModelState()) return null;
-
-        if (!await AuthorizeUser(employerId)) return null;
-
-        //Check if the employer di employ this worker
-        if (!await IsEmployersPastWorker(employerId, workerId))
-            return null;
-
-        var workerRating =
-            await workerRatingRepository.AddAsync(workerId, employerId, numericalRating, verbalRating?.VerbalRating);
-
-        if (workerRating == null)
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Id", "There is no record between provided worker id and job id");
+            SetStatusCodeTo(400);
             return null;
         }
-
-        Response.StatusCode = 201;
-
-        Response.Headers.Location = $"/Workers/{workerId}/Ratings/{employerId}";
-        return mapper.Map<WorkerRatingDto>(workerRating);
+        if (!await IsSameUserOrAdminAsync(employerId))
+        {
+            SetStatusCodeTo(401);
+            return null;
+        }
+        var ratingDto = CreateRatingDto(employerId, workerId, numericalRating, verbalRating?.VerbalRating);
+        
+        var serviceResult = await workerRatingService.AddAsync(ratingDto);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
 
@@ -269,26 +171,22 @@ public class RatingsController(
         int numericalRating,
         [FromBody] VerbalRatingDto? verbalRating)
     {
-        if (!IsValidModelState()) return null;
-
-        if (!await AuthorizeUser(workerId)) return null;
-
-        //Check if the worker did work for this employer
-        if (!await IsEmployersPastWorker(employerId, workerId))
-            return null;
-
-        var employerRating =
-            await employerRatingRepository.UpdateAsync(employerId, workerId, numericalRating,
-                verbalRating?.VerbalRating);
-
-        if (employerRating == null)
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Rating", "Rating does not exist");
+            SetStatusCodeTo(400);
+            return null;
+        }
+        if (!await IsSameUserOrAdminAsync(workerId))
+        {
+            SetStatusCodeTo(401);
             return null;
         }
 
-        return mapper.Map<EmployerRatingDto>(employerRating);
+        var ratingDto = CreateRatingDto(employerId, workerId, numericalRating, verbalRating?.VerbalRating);
+        
+        var serviceResult = await employerRatingService.UpdateAsync(ratingDto);
+        if (!serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpPatch("/Workers/{workerId}/Ratings/{employerId}")]
@@ -298,25 +196,21 @@ public class RatingsController(
         int numericalRating,
         [FromBody] VerbalRatingDto? verbalRating)
     {
-        if (!IsValidModelState()) return null;
-
-        if (!await AuthorizeUser(employerId)) return null;
-
-        //Check if the employer did employ for this worker
-        if (!await IsEmployersPastWorker(employerId, workerId))
-            return null;
-
-        var workerRating =
-            await workerRatingRepository.UpdateAsync(workerId, employerId, numericalRating, verbalRating?.VerbalRating);
-
-        if (workerRating == null)
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Rating", "Rating does not exist");
+            SetStatusCodeTo(400);
             return null;
         }
-
-        return mapper.Map<WorkerRatingDto>(workerRating);
+        if (!await IsSameUserOrAdminAsync(employerId))
+        {
+            SetStatusCodeTo(401);
+            return null;
+        }
+        var ratingDto = CreateRatingDto(employerId, workerId, numericalRating, verbalRating?.VerbalRating);
+        
+        var serviceResult = await workerRatingService.UpdateAsync(ratingDto);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpPatch("/Employers/{employerId}/Jobs/{jobId}/Ratings/{workerId}")]
@@ -326,22 +220,21 @@ public class RatingsController(
         int numericalRating,
         [FromBody] VerbalRatingDto? verbalRating)
     {
-        if (!IsValidModelState()) return null;
-        if (!await AuthorizeUser(workerId)) return null;
-        if (!await ValidateWorkerJob(workerId, employerId, jobId)) return null;
-
-        var workerJob =
-            await workerJobRepository.UpdateRatingAsync(workerId, jobId, numericalRating, verbalRating?.VerbalRating);
-
-        if (workerJob == null)
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Rating", "There is no record between provided worker and job");
+            SetStatusCodeTo(400);
             return null;
         }
-
-        Response.StatusCode = 201;
-        return mapper.Map<WorkerJobDto>(workerJob);
+        if (!await IsSameUserOrAdminAsync(workerId))
+        {
+            SetStatusCodeTo(401);
+            return null;
+        }
+        
+        var serviceResult = 
+            await workerJobService.UpdateRatingAsync(workerId, jobId, numericalRating, verbalRating?.VerbalRating);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
 
@@ -349,119 +242,89 @@ public class RatingsController(
     [Authorize(Roles = "Worker,Admin")]
     public async Task DeleteEmployerRating(string employerId, string workerId)
     {
-        if (!IsValidModelState()) return;
-
-        if (!await AuthorizeUser(workerId)) return;
-
-        //Check if the worker did work for this employer
-        if (!await IsEmployersPastWorker(employerId, workerId)) return;
-
-        if (!await employerRatingRepository.DeleteAsync(employerId, workerId))
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Rating", "Rating does not exist");
+            SetStatusCodeTo(400);
             return;
         }
-
-        Response.StatusCode = 204;
+        if (!await IsSameUserOrAdminAsync(workerId))
+        {
+            SetStatusCodeTo(401);
+            return;
+        }
+        
+        var serviceResult = await employerRatingService.DeleteAsync(employerId, workerId);
+        SetStatusCodeTo(serviceResult.IsSuccess ? 
+            204 : 
+            GetStatusCode.BasedOnError(serviceResult.Error));
     }
 
     [HttpDelete("/Workers/{workerId}/Ratings/{employerId}")]
     [Authorize(Roles = "Employer,Admin")]
     public async Task DeleteWorkerRating(string workerId, string employerId)
     {
-        if (!IsValidModelState()) return;
-
-        if (!await AuthorizeUser(employerId)) return;
-
-        //Check if the employer did employ this worker
-        if (!await IsEmployersPastWorker(employerId, workerId)) return;
-
-        if (!await workerRatingRepository.DeleteAsync(workerId, employerId))
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Rating", "Rating does not exist");
+            SetStatusCodeTo(400);
             return;
         }
-
-        Response.StatusCode = 204;
+        if (!await IsSameUserOrAdminAsync(employerId))
+        {
+            SetStatusCodeTo(401);
+            return;
+        }
+        
+        var serviceResult = await workerRatingService.DeleteAsync(workerId, employerId);
+        SetStatusCodeTo(serviceResult.IsSuccess ? 
+            204 : 
+            GetStatusCode.BasedOnError(serviceResult.Error));
     }
 
     [HttpDelete("/Employers/{employerId}/Jobs/{jobId}/Ratings/{workerId}")]
     [Authorize(Roles = "Worker,Admin")]
     public async Task DeleteJobRating(string employerId, string jobId, string workerId)
     {
-        if (!IsValidModelState()) return;
-
-        if (!await AuthorizeUser(workerId)) return;
-
-        if (!await ValidateWorkerJob(workerId, employerId, jobId)) return;
-
-        if (!await workerJobRepository.DeleteRatingAsync(workerId, jobId))
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Rating", "Rating does not exist");
+            SetStatusCodeTo(400);
             return;
         }
-
-        Response.StatusCode = 204;
+        if (!await IsSameUserOrAdminAsync(workerId))
+        {
+            SetStatusCodeTo(401);
+            return;
+        }
+        
+        var serviceResult = 
+            await workerJobService.DeleteRatingAsync(workerId, jobId);
+        SetStatusCodeTo(serviceResult.IsSuccess ? 
+            204 : 
+            GetStatusCode.BasedOnError(serviceResult.Error));
     }
 
 
     //Helper functions
-    private bool IsValidModelState()
-    {
-        if (ModelState.IsValid) return true;
-
-        Response.StatusCode = 400;
-        return false;
-    }
-
-    private async Task<bool> IsEmployersPastWorker(string employerId, string workerId)
-    {
-        var jobs = await jobRepository.GetByEmployerIdAsync(employerId);
-
-        if (jobs.Count > 0)
-        {
-            foreach (var job in jobs)
-            {
-                if (await workerJobRepository.GetAsync(workerId, job.Id) != null) return true;
-            }
-        }
-
-        Response.StatusCode = 403;
-        ModelState.AddModelError("Record", "There is no job record between provided employer and worker");
-        return false;
-    }
-
-    private async Task<bool> ValidateWorkerJob(string workerId, string employerId, string jobId)
-    {
-        var workerJob = await workerJobRepository.GetAsync(workerId, jobId);
-
-        if (workerJob == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "There is no record between provided worker and job");
-            return false;
-        }
-
-        if (workerJob.Job.EmployerId != employerId)
-        {
-            Response.StatusCode = 403;
-            ModelState.AddModelError("Record", "There is no record between provided employer and worker");
-            return false;
-        }
-
-        return true;
-    }
-
-    private async Task<bool> AuthorizeUser(string id)
+    private async Task<bool> IsSameUserOrAdminAsync(string id)
     {
         var authorizationResult = await authorizationService.AuthorizeAsync(User, id, "SameUserOrAdmin");
-        if (authorizationResult.Succeeded) return true;
+        return authorizationResult.Succeeded;
+    }
+    
+    private static bool IdsMatch(string? firstId, string? secondId)
+    {
+        return firstId == secondId;
+    }
+    
+    private void SetStatusCodeTo(int statusCode) => Response.StatusCode = statusCode;
 
-        Response.StatusCode = 403;
-        ModelState.AddModelError("Forbidden", "Account is not authorized to perform this action");
-        return false;
+    private RatingDto CreateRatingDto(string workerId, string employerId, int numericalRating, string? verbalRating)
+    {
+        return new RatingDto
+        {
+            WorkerId = workerId,
+            EmployerId = employerId,
+            NumericalRating = numericalRating,
+            VerbalRating = verbalRating,
+        };
     }
 }

@@ -1,12 +1,13 @@
+using AutoMapper;
 using Ergasia_API.Data;
 using Ergasia_API.Models.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ergasia_API.Models.Repositories;
 
-public class WorkerJobEfRepository(PrimaryDbContext context) : IWorkerJobRepository
+public class WorkerJobEfRepository(PrimaryDbContext context, IMapper mapper) : IWorkerJobRepository
 {
-    public async Task<List<WorkerJob>> GetByJobIdAsync(string jobId)
+    public async Task<IEnumerable<WorkerJob>> GetByJobIdAsync(string jobId)
     {
         return await context.WorkerJobs
             .Where(wj => wj.JobId == jobId)
@@ -15,7 +16,7 @@ public class WorkerJobEfRepository(PrimaryDbContext context) : IWorkerJobReposit
             .ToListAsync();
     }
 
-    public async Task<List<WorkerJob>> GetByWorkerIdAsync(string workerId)
+    public async Task<IEnumerable<WorkerJob>> GetByWorkerIdAsync(string workerId)
     {
         return await context.WorkerJobs
             .Where(wj => wj.WorkerId == workerId)
@@ -34,7 +35,7 @@ public class WorkerJobEfRepository(PrimaryDbContext context) : IWorkerJobReposit
 
     }
 
-    public async Task<List<WorkerJob>> GetByEmployerIdAsync(string employerId, string jobId)
+    public async Task<IEnumerable<WorkerJob>> GetByEmployerIdAsync(string employerId, string jobId)
     {
         return await context.WorkerJobs
             .Where(wj => wj.JobId == jobId && wj.Job.EmployerId == employerId)
@@ -43,68 +44,39 @@ public class WorkerJobEfRepository(PrimaryDbContext context) : IWorkerJobReposit
             .ToListAsync();
     }
 
-    public async Task<WorkerJob?> AddAsync(string workerId, string jobId)
+    public async Task AddAsync(WorkerJob workerJob)
     {
-        //Checking if the WorkerJob doesn't already exist
-        var workerJob = await GetAsync(workerId, jobId);
-        if (workerJob != null) return null;
-        
-        var job = await context.Jobs.FindAsync(jobId);
-        if (job == null) return null;
-
-        var worker = await context.Workers.FindAsync(workerId);
-        if (worker == null) return null;
-        
-        workerJob = new WorkerJob
-       {
-           JobId = jobId,
-           WorkerId = workerId,
-           Job = job,
-           Worker = worker
-       };
-
        await context.WorkerJobs.AddAsync(workerJob);
        await context.SaveChangesAsync();
-       
-       return workerJob;
     }
 
-    public async Task<WorkerJob?> UpdateRatingAsync(string workerId, string jobId, int numericalRating, string? verbalRating)
+    public async Task UpdateRatingAsync(WorkerJob newWorkerJob)
     {
-        var workerJob = await GetAsync(workerId, jobId);
-
-        if (workerJob == null) return null;
+        var workerJob = await GetAsync(newWorkerJob.WorkerId, newWorkerJob.JobId);
+        if (workerJob == null) return;
         
-        workerJob.NumericalRating = numericalRating;
-        workerJob.VerbalRating = verbalRating;
+        workerJob.NumericalRating = newWorkerJob.NumericalRating;
+        workerJob.VerbalRating = newWorkerJob.VerbalRating;
         workerJob.DateOfRating = DateTime.Now;
         
         await context.SaveChangesAsync();
-        return workerJob;
     }
 
-    public async Task<bool> DeleteAsync(string workerId, string jobId)
+    public async Task DeleteAsync(WorkerJob workerJob)
     {
-        var workerJob = await GetAsync(workerId, jobId);
-
-        if (workerJob == null) return false;
-        
         context.WorkerJobs.Remove(workerJob);
         await context.SaveChangesAsync();
-        return true;
     }
 
-    public async Task<bool> DeleteRatingAsync(string workerId, string jobId)
+    public async Task DeleteRatingAsync(WorkerJob workerJobToDelete)
     {
-        var workerJob = await GetAsync(workerId, jobId);
-
-        if (workerJob == null) return false;
+        var workerJob = await GetAsync(workerJobToDelete.WorkerId, workerJobToDelete.JobId);
+        if (workerJob == null) return;
         
         workerJob.NumericalRating = null;
         workerJob.VerbalRating = null;
         workerJob.DateOfRating = null;
         
         await context.SaveChangesAsync();
-        return true;
     }
 }

@@ -11,17 +11,14 @@ public class WorkerEfRepository(PrimaryDbContext context) : IWorkerRepository
         return await context.Workers.FindAsync(id);
     }
 
-    public async Task<List<Worker>> GetAllAsync()
+    public async Task<IEnumerable<Worker>> GetAllAsync()
     {
         return await context.Workers.ToListAsync();
     }
 
-    public async Task<Worker?> UpdateAsync(Worker worker)
+    public async Task UpdateAsync(Worker worker)
     {
-        if(await GetByIdAsync(worker.Id) == null) return null;
-        
         context.Workers.Update(worker);
         await context.SaveChangesAsync();
-        return worker;
     }
 }

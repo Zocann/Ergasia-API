@@ -6,7 +6,7 @@ namespace Ergasia_API.Models.Repositories;
 
 public class EmployerRatingEfRepository(PrimaryDbContext context) : IEmployerRatingRepository
 {
-    public async Task<List<EmployerRating>> GetAllByIdAsync(string employerId)
+    public async Task<IEnumerable<EmployerRating>> GetAllByEmployerIdAsync(string employerId)
     {
         return await context.EmployerRatings
             .Where(ej => ej.EmployerId == employerId)
@@ -14,7 +14,7 @@ public class EmployerRatingEfRepository(PrimaryDbContext context) : IEmployerRat
             .Include(ej => ej.Worker)
             .ToListAsync();
     }
-    
+
     public async Task<EmployerRating?> GetAsync(string employerId, string workerId)
     {
         return await context.EmployerRatings
@@ -24,51 +24,28 @@ public class EmployerRatingEfRepository(PrimaryDbContext context) : IEmployerRat
             .SingleOrDefaultAsync();
     }
 
-    public async Task<EmployerRating?> AddAsync(string employerId, string workerId, int numericalRating, string? verbalRating)
+    public async Task AddAsync(EmployerRating employerRating)
     {
-        if (await GetAsync(workerId, employerId) != null) return null;
-        
-        var worker = await context.Workers.FindAsync(workerId);
-        var employer = await context.Employers.FindAsync(employerId);
-        
-        if (worker == null || employer == null) return null;
-        
-        var employerRating = new EmployerRating()
-        {
-            NumericalRating = numericalRating,
-            VerbalRating = verbalRating,
-            EmployerId = employerId,
-            WorkerId = workerId,
-            Worker = worker,
-            Employer = employer,
-        };
-        
         await context.EmployerRatings.AddAsync(employerRating);
         await context.SaveChangesAsync();
-        
-        return employerRating;
     }
 
-    public async Task<EmployerRating?> UpdateAsync(string employerId, string workerId, int numericalRating, string? verbalRating)
+    public async Task UpdateAsync(EmployerRating employerRating)
     {
-        var employerRating = await GetAsync(employerId, workerId);
-        if (employerRating == null) return null;
+        var oldEmployerRating = await GetAsync(employerRating.EmployerId, employerRating.WorkerId);
+
+        if (oldEmployerRating == null) return;
         
-        employerRating.NumericalRating = numericalRating;
-        employerRating.VerbalRating = verbalRating;
-        employerRating.Date = DateTime.Now;
+        oldEmployerRating.NumericalRating = employerRating.NumericalRating;
+        oldEmployerRating.VerbalRating = employerRating.VerbalRating;
+        oldEmployerRating.Date = DateTime.Now;
         
         await context.SaveChangesAsync();
-        return employerRating;
     }
 
-    public async Task<bool> DeleteAsync(string employerId, string workerId)
+    public async Task DeleteAsync(EmployerRating employerRating)
     {
-        var employerRating = await GetAsync(employerId, workerId);
-        if (employerRating == null) return false;
-        
         context.EmployerRatings.Remove(employerRating);
         await context.SaveChangesAsync();
-        return true;
     }
 }

@@ -6,5 +6,5 @@ public interface ITokenService
 {
     public Task<string> GenerateAccessToken(User user);
     public string GenerateRefreshToken();
-    public Task<bool> SetRefreshToken(User user);
+    public Task<bool> SetRefreshTokenAsync(User user);
 }

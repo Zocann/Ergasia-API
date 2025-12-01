@@ -1,7 +1,6 @@
-using AutoMapper;
 using Ergasia_API.DTOs.Job;
-using Ergasia_API.Models;
-using Ergasia_API.Models.Interfaces;
+using Ergasia_API.Helpers;
+using Ergasia_API.Services.Interfaces.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,227 +9,167 @@ namespace Ergasia_API.Controllers;
 [ApiController]
 [Route("Employers/{employerId}/[controller]")]
 public class JobsController(
-    IJobRepository repository,
-    IEmployerRepository employerRepository,
-    IWorkerJobRepository workerJobRepository,
-    IWorkerJobRequestRepository workerJobRequestRepository,
-    IMapper mapper,
+    IJobService jobService,
+    IWorkerJobService workerJobService,
+    IWorkerJobRequestService workerJobRequestService,
     IAuthorizationService authorizationService) : ControllerBase
 {
     public record MessageDto
     {
-        public string? Message { get; } = null;
+        public readonly string? Message = null;
     }
 
     [HttpGet("/Jobs")]
-    public async Task<List<JobDto>> GetAllUpcomingAsync()
+    public async Task<IEnumerable<JobDto>?> GetAllUpcomingAsync()
     {
-        List<JobDto> result = [];
-        var jobs = await repository.GetAllAsync();
-
-        if (jobs.Count > 0)
-        {
-            result.AddRange(from job in jobs where job.DateOfBegin > DateTime.UtcNow select mapper.Map<JobDto>(job));
-        }
-        
-        return result;
+        var serviceResult = await jobService.GetAllUpcomingAsync();
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpGet]
     [Authorize]
-    public async Task<List<JobDto>> GetAllFromEmployerAsync(string employerId)
+    public async Task<IEnumerable<JobDto>?> GetAllFromEmployerAsync(string employerId)
     {
-        List<JobDto> result = [];
-        var jobs = await repository.GetByEmployerIdAsync(employerId);
-        
-        if (jobs.Count > 0)
-        {
-            result.AddRange(from job in jobs select mapper.Map<JobDto>(job));
-        }
-        
-        return result;
+        var serviceResult = await jobService.GetAllFromEmployerAsync(employerId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpGet("{id}")]
     [Authorize]
     public async Task<JobDto?> GetAsync(string id)
     {
-        var job = await repository.GetByIdAsync(id);
-
-        if (job != null) return mapper.Map<JobDto>(job);
-
-        ModelState.AddModelError("Id", "Job with provided id does not exist");
-        Response.StatusCode = 404;
-        return null;
+        var serviceResult = await jobService.GetAsync(id);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [HttpGet("{id}/Work-spots")]
     [Authorize]
     public async Task<int?> GetWorkSpotsAsync(string id)
     {
-        var spots = await repository.AvailableWorkSpots(id);
-
-        if (spots == null) Response.StatusCode = 404;
-
-        return spots;
+        var serviceResult = await jobService.GetJobWorkSpots(id);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpPost]
     [Authorize(Roles = "Employer,Admin")]
     public async Task<JobDto?> PostAsync(string employerId, JobDto jobDto)
     {
-        if (!IsValidModelState()) return null;
-        
-        if (jobDto.EmployerId != employerId)
+        if (! ModelState.IsValid || ! IdsMatch(employerId, jobDto.EmployerId))
         {
-            Response.StatusCode = 403;
-            ModelState.AddModelError("Id", "Employer id does not match employer in route");
+            SetStatusCodeTo(400);
+            return null;
+        }
+        if (! await IsSameUserOrAdminAsync(employerId))
+        {
+            SetStatusCodeTo(401);
             return null;
         }
         
-        if (! await AuthorizeUser(employerId)) return null;
-        
-        var employer = await employerRepository.GetByIdAsync(employerId);
-
-        if (employer == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Employer", "Employer does not exist");
-            return null;
-        }
-
-        jobDto.Id = Guid.NewGuid().ToString();
-
-        var job = mapper.Map<Job>(jobDto);
-        job.Employer = employer;
-        
-        await repository.AddAsync(job);
-        
-        Response.StatusCode = 201;
-        Response.Headers.Location = $"/Employers/{employerId}/Jobs/{job.Id}";
-        return mapper.Map<JobDto>(job);
+        var serviceResult = await jobService.AddAsync(jobDto);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpPatch("{jobId}")]
     [Authorize(Roles = "Employer,Admin")]
     public async Task<JobDto?> UpdateAsync(JobDto jobDto, string jobId, string employerId)
     {
-        if (!IsValidModelState()) return null;
-        
-        if (jobDto.Id == null)
+        if (! ModelState.IsValid || ! IdsMatch(jobId, jobDto.Id) || ! IdsMatch(employerId, jobDto.EmployerId))
         {
-            Response.StatusCode = 400;
-            ModelState.AddModelError("Id", "Id cannot be null");
+            SetStatusCodeTo(400);
             return null;
         }
-
-        if (jobId != jobDto.Id)
+        if (!await IsSameUserOrAdminAsync(employerId))
         {
-            Response.StatusCode = 400;
-            ModelState.AddModelError("Id", "Job id does not match id route");
+            SetStatusCodeTo(401);
             return null;
         }
         
-        //Checking if job is not current or not ended
-        var job = await repository.GetByIdAsync(jobId);
-
-        if (job == null)
-        {
-            Response.StatusCode = 404;
-            return null;
-        }
-
-        if (job.EmployerId != jobDto.EmployerId || jobDto.EmployerId != employerId)
-        {
-            Response.StatusCode = 403;
-            ModelState.AddModelError("Record", "This job does not belong to this employer");
-            return null;
-        }
-        
-        if (! await AuthorizeUser(employerId)) return null;
-
-        if (job.DateOfBegin <= DateTime.Now && !User.IsInRole("Admin"))
-        {
-            Response.StatusCode = 403;
-            ModelState.AddModelError("Record", "Cannot update progressing or finished job");
-            return null;
-        }
-        
-        var updatedJob = await repository.UpdateAsync(mapper.Map<Job>(jobDto));
-
-        if (updatedJob == null)
-        {
-            Response.StatusCode = 404;
-            return null;
-        }
-        
-        return mapper.Map<JobDto>(updatedJob);
+        var serviceResult = await jobService.UpdateAsync(jobDto);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [HttpDelete("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task Delete(string id)
+    public async Task DeleteAsync(string id)
     {
-        var deleted = await repository.DeleteAsync(id);
+        if (!await IsSameUserOrAdminAsync(id))
+        {
+            SetStatusCodeTo(401);
+            return;
+        }
+        
+        var serviceResult = await jobService.DeleteAsync(id);
 
-        Response.StatusCode = deleted ? 200 : 404;
+        SetStatusCodeTo(serviceResult.IsSuccess ? 
+            204 : 
+            GetStatusCode.BasedOnError(serviceResult.Error));
     }
 
 
     [Authorize(Roles = "Employer,Admin")]
     [HttpGet("{jobId}/Requests")]
-    public async Task<IEnumerable<JobRequestDto?>> GetJobRequestsAsync(string employerId, string jobId)
+    public async Task<IEnumerable<JobRequestDto>?> GetJobRequestsAsync(string employerId, string jobId)
     {
-        List<JobRequestDto> result = [];
-        
-        if (!IsValidModelState()) return result;
-        if (! await AuthorizeUser(employerId)) return result;
-
-        var jobRequests = await workerJobRequestRepository.GetByEmployerIdAsync(employerId, jobId);
-
-        if (jobRequests.Count > 0)
+        if (!ModelState.IsValid)
         {
-            result.AddRange(from jobRequest in jobRequests select mapper.Map<JobRequestDto>(jobRequest));
+            SetStatusCodeTo(400);
+            return null;
         }
-        
-        return result;
+        if (!await IsSameUserOrAdminAsync(employerId))
+        {
+            SetStatusCodeTo(401);
+            return null;
+        }
+
+        var serviceResult = await workerJobRequestService.GetAllFromEmployerAsync(employerId, jobId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [Authorize]
     [HttpGet("/Workers/{workerId}/Jobs/Requests")]
-    public async Task<List<JobRequestDto>> GetJobRequestsByWorkerIdAsync(string workerId)
+    public async Task<IEnumerable<JobRequestDto>?> GetJobRequestsByWorkerIdAsync(string workerId)
     {
-        List<JobRequestDto> result = [];
-        
-        if (!IsValidModelState()) return result;
-        if (! await AuthorizeUser(workerId)) return result;
-
-        var jobRequests = await workerJobRequestRepository.GetByWorkerId(workerId);
-
-        if (jobRequests.Count > 0)
+        if (!ModelState.IsValid)
         {
-            result.AddRange(from jobRequest in jobRequests select mapper.Map<JobRequestDto>(jobRequest));
+            SetStatusCodeTo(400);
+            return null;
         }
-        
-        return result;
+        if (!await IsSameUserOrAdminAsync(workerId))
+        {
+            SetStatusCodeTo(401);
+            return null;
+        }
+
+        var serviceResult = await workerJobRequestService.GetAllFromWorkerAsync(workerId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [Authorize]
     [HttpGet("{jobId}/Requests/{workerId}")]
     public async Task<JobRequestDto?> GetJobRequestAsync(string workerId, string jobId)
     {
-        if (!IsValidModelState()) return null;
-        
-        if (! await AuthorizeUser(workerId)) return null;
-
-        var jobRequest = await workerJobRequestRepository.GetAsync(workerId, jobId);
-        if (jobRequest == null)
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
+            SetStatusCodeTo(400);
             return null;
         }
-        
-        return mapper.Map<JobRequestDto>(jobRequest);
+        if (!await IsSameUserOrAdminAsync(workerId))
+        {
+            SetStatusCodeTo(401);
+            return null;
+        }
+
+        var serviceResult = await workerJobRequestService.GetAsync(workerId, jobId);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     
@@ -238,47 +177,20 @@ public class JobsController(
     [Authorize(Roles = "Worker,Admin")]
     public async Task<JobRequestDto?> PostJobRequestAsync(string jobId, string workerId, [FromBody] MessageDto message)
     {
-        if (!IsValidModelState()) return null;
-        
-        if (! await AuthorizeUser(workerId)) return null;
-
-        var job = await repository.GetByIdAsync(jobId);
-
-        if (job == null)
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "Job does not exist");
+            SetStatusCodeTo(400);
+            return null;
+        }
+        if (!await IsSameUserOrAdminAsync(workerId))
+        {
+            SetStatusCodeTo(401);
             return null;
         }
         
-        //Check if job didnt already finished
-        if (job.DateOfBegin.AddDays(job.Duration) < DateTime.UtcNow)
-        {
-            Response.StatusCode = 400;
-            ModelState.AddModelError("Date of begin", "Job has already finished");
-            return null;
-            
-        }
-        
-        //Check if there already isn't job request between this job and worker
-        var workerJobRequest = await workerJobRequestRepository.GetAsync(workerId, jobId);
-
-        if (workerJobRequest != null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "Request already exists");
-            return null;
-        }
-        
-        workerJobRequest = await workerJobRequestRepository.AddAsync(workerId, jobId, message.Message);
-        
-        if (workerJobRequest == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Id", "Worker or job does not exist");
-        }
-        
-        return mapper.Map<JobRequestDto>(workerJobRequest);
+        var serviceResult = await workerJobRequestService.AddAsync(workerId, jobId, message.Message);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [Authorize(Roles = "Employer,Admin")]
@@ -286,173 +198,121 @@ public class JobsController(
     public async Task DeleteJobRequestAsync(string jobId, string employerId, string workerId)
 
     {
-        if (!IsValidModelState()) return;
+        if (!ModelState.IsValid)
+        {
+            SetStatusCodeTo(400);
+            return;
+        }
+        if (!await IsSameUserOrAdminAsync(workerId) || !await IsSameUserOrAdminAsync(employerId))
+        {
+            SetStatusCodeTo(401);
+            return;
+        }
         
-        if (User.IsInRole("Employer")) if (! await AuthorizeUser(employerId)) return;
-        if (User.IsInRole("Worker")) if (! await AuthorizeUser(workerId)) return;
-
-        var jobRequest = await workerJobRequestRepository.GetAsync(workerId, jobId);
-
-        if (jobRequest == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "Request does not exist");
-            return;
-        }
-
-        if (jobRequest.WorkerId != workerId || jobRequest.JobId != jobId || jobRequest.Job.EmployerId != employerId)
-        {
-            Response.StatusCode = 400;
-            ModelState.AddModelError("Id", "Provided id's do not match request id's");
-            return;
-        }
-
-        Response.StatusCode = await workerJobRequestRepository.DeleteAsync(workerId, jobId) 
-            ? 204 : 400;
+        var serviceResult = await workerJobRequestService.DeleteAsync(workerId, jobId);
+        SetStatusCodeTo(serviceResult.IsSuccess ? 204 : GetStatusCode.BasedOnError(serviceResult.Error));
     }
 
 
     [HttpGet("{jobId}/Workers")]
     [Authorize]
-    public async Task<List<WorkerJobDto>> GetWorkerJobsAsync(string jobId)
+    public async Task<IEnumerable<WorkerJobDto>?> GetWorkerJobsByJobIdAsync(string jobId)
     {
-        List<WorkerJobDto> result = [];
-        if (!IsValidModelState()) return result;
-        
-        var workerJobs = await workerJobRepository.GetByJobIdAsync(jobId);
-        if (workerJobs.Count > 0) 
-            result.AddRange(from workerJob in workerJobs select mapper.Map<WorkerJobDto>(workerJob));
-        
-        return result;
+        if (!ModelState.IsValid)
+        {
+            SetStatusCodeTo(400);
+            return null;
+        }
+
+        var serviceResult = await workerJobService.GetAllByJobIdAsync(jobId);
+        if (!serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [HttpGet("/Workers/{workerId}/Jobs")]
     [Authorize]
-    public async Task<IEnumerable<WorkerJobDto?>> GetWorkerJobsByWorkerIdAsync(string workerId)
+    public async Task<IEnumerable<WorkerJobDto>?> GetWorkerJobsByWorkerIdAsync(string workerId)
     {
-        List<WorkerJobDto> result = [];
-        if (!IsValidModelState()) return result;
-        
-        var workerJobs = await workerJobRepository.GetByWorkerIdAsync(workerId);
-        if (workerJobs.Count > 0) 
-            result.AddRange(from workerJob in workerJobs select mapper.Map<WorkerJobDto>(workerJob));
-        
-        return result;
+        if (!ModelState.IsValid)
+        {
+            SetStatusCodeTo(400);
+            return null;
+        }
+
+        var serviceResult = await workerJobService.GetAllByWorkerIdAsync(workerId);
+        if (!serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [HttpGet("{jobId}/Workers/{workerId}")]
     [Authorize]
     public async Task<WorkerJobDto?> GetWorkerJobAsync(string jobId, string workerId)
     {
-        if (!IsValidModelState()) return null;
-        
-        var workerJob = await workerJobRepository.GetAsync(workerId, jobId);
-
-        if (workerJob == null)
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
+            SetStatusCodeTo(400);
             return null;
         }
-        
-        return mapper.Map<WorkerJobDto>(workerJob);
+
+        var serviceResult = await workerJobService.GetAsync(workerId, jobId);
+        if (!serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [HttpPost("{jobId}/Workers/{workerId}")]
     [Authorize(Roles = "Employer,Admin")]
     public async Task<WorkerJobDto?> PostWorkerJobAsync(string employerId, string jobId, string workerId)
     {
-        if (!IsValidModelState()) return null;
-        
-        if (! await AuthorizeUser(employerId)) return null;
-
-        var jobRequest = await workerJobRequestRepository.GetAsync(workerId, jobId);
-
-        if (jobRequest == null)
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "Request does not exist");
+            SetStatusCodeTo(400);
+            return null;
+        }
+        if (! await IsSameUserOrAdminAsync(employerId))
+        {
+            SetStatusCodeTo(401);
             return null;
         }
 
-        if (jobRequest.WorkerId != workerId || jobRequest.JobId != jobId || jobRequest.Job.EmployerId != employerId)
-        {
-            Response.StatusCode = 400;
-            ModelState.AddModelError("Id", "Provided id's do not match request id's");
-            return null;
-        }
-        
-        //Delete Job request
-        await workerJobRequestRepository.DeleteAsync(workerId, jobId);
-        
-        //Add WorkerJob record
-        var workerJob = await workerJobRepository.AddAsync(workerId, jobId);
-        
-        if (workerJob == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Id", "Worker or job does not exist");
-        }
-        
-        return mapper.Map<WorkerJobDto>(workerJob);
+        var serviceResult = await workerJobService.AddAsync(workerId, jobId);
+        if (!serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [HttpDelete("{jobId}/Workers/{workerId}")]
     [Authorize(Roles = "Employer,Admin")]
     public async Task DeleteWorkerJobAsync(string employerId, string jobId, string workerId)
     {
-        if (!IsValidModelState()) return;
-
-        if (!await AuthorizeUser(employerId)) return;
-
-        var workerJob = await workerJobRepository.GetAsync(workerId, jobId);
-
-        if (workerJob == null)
+        if (!ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "WorkerJob does not exist");
+            SetStatusCodeTo(400);
+            return;
+        }
+        if (! await IsSameUserOrAdminAsync(employerId))
+        {
+            SetStatusCodeTo(403);
             return;
         }
 
-        if (workerJob.WorkerId != workerId || workerJob.JobId != jobId || workerJob.Job.EmployerId != employerId)
-        {
-            Response.StatusCode = 400;
-            ModelState.AddModelError("Id", "Provided id's do not match request id's");
-            return;
-        }
-        
-        //Check if the WorkerJob isn't in progress or already finished
-        if (workerJob.Job.DateOfBegin <= DateTime.Now && !User.IsInRole("Admin"))
-        {
-            Response.StatusCode = 403;
-            ModelState.AddModelError("Record", "Cannot delete progressing or finished worker and job record");
-            return;
-        }
+        var serviceResult = await workerJobService.DeleteRatingAsync(workerId, jobId);
 
-        if (!await workerJobRepository.DeleteAsync(workerId, jobId))
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "WorkerJob does not exist");
-        }
-        
-        Response.StatusCode = 204;
-    }
-    //Helper functions
-
-    private bool IsValidModelState()
-    {
-        if (ModelState.IsValid) return true;
-
-        Response.StatusCode = 400;
-        return false;
+        SetStatusCodeTo(serviceResult.IsSuccess ? 
+            204 : 
+            GetStatusCode.BasedOnError(serviceResult.Error));
     }
     
-    private async Task<bool> AuthorizeUser(string id)
+    
+    //Helper functions
+    private async Task<bool> IsSameUserOrAdminAsync(string id)
     {
         var authorizationResult = await authorizationService.AuthorizeAsync(User, id, "SameUserOrAdmin");
-        if (authorizationResult.Succeeded) return true;
-
-        Response.StatusCode = 403;
-        ModelState.AddModelError("Forbidden", "Account is not authorized to perform this action");
-        return false;
+        return authorizationResult.Succeeded;
     }
+    
+    private static bool IdsMatch(string? firstId, string? secondId)
+    {
+        return firstId == secondId;
+    }
+    
+    private void SetStatusCodeTo(int statusCode) => Response.StatusCode = statusCode;
 }

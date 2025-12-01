@@ -1,7 +1,6 @@
-using AutoMapper;
 using Ergasia_API.DTOs.User;
-using Ergasia_API.Models.Interfaces;
-using Ergasia_API.Services.Interfaces;
+using Ergasia_API.Helpers;
+using Ergasia_API.Services.Interfaces.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,250 +8,136 @@ namespace Ergasia_API.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class UsersController(IUserRepository repository, ITokenService tokenService, 
-    IMapper mapper, IAuthorizationService authorizationService,
-    IProfilePictureService profilePictureService) : ControllerBase
+public class UsersController(IUserService userService, IAuthorizationService authorizationService) : ControllerBase
 {
     [Authorize]
     [HttpGet("{id}")]
-    public async Task<UserDto?> GetUser(string id)
+    public async Task<UserDto?> GetUserAsync(string id)
     {
-        if (!IsValidModelState()) return null;
-
-        if (!await AuthorizeUser(id))
+        if (! ModelState.IsValid)
         {
-            Response.StatusCode = 401;
+            SetStatusCodeTo(400);
+            return null;
+        }
+        if (! await IsSameUserOrAdminAsync(id))
+        {
+            SetStatusCodeTo(401);
             return null;
         }
 
-        var user = await repository.GetByIdAsync(id);
-
-        if (user == null)
-        {
-            Response.StatusCode = 404;
-            return null;
-        }
-        
-        return mapper.Map<UserDto>(user);
+        var serviceResult = await userService.GetAsync(id);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [Authorize]
     [HttpGet("role/{id}")]
     public async Task<string?> GetRole(string id)
     {
-        if (!IsValidModelState()) return null;
-
-        if (!await AuthorizeUser(id)) return null;
-
-        var user = await repository.GetByIdAsync(id);
-
-        if (user == null)
+        if (! ModelState.IsValid)
         {
-            Response.StatusCode = 404;
+            SetStatusCodeTo(400);
+            return null;
+        }
+        if (! await IsSameUserOrAdminAsync(id))
+        {
+            SetStatusCodeTo(401);
             return null;
         }
 
-        foreach (var role in await repository.GetRolesAsync(user))
-        {
-            return role;
-        }
-
-        Response.StatusCode = 404;
-        return null;
+        var serviceResult = await userService.GetSingleRoleAsync(id);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [HttpGet("email/{email}")]
     public async Task<bool?> ValidateEmail(string email)
     {
-        if (!IsValidModelState()) return null;
+        if (! ModelState.IsValid)
+        {
+            SetStatusCodeTo(400);
+            return null;
+        }
 
-        var user = await repository.GetByEmailAsync(email);
-
-        if (user != null) return false;
-        
-        Response.StatusCode = 404;
-        return null;
+        var serviceResult = await userService.UserWithThisEmailExists(email);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
 
     }
     
     [AllowAnonymous]
     [HttpPost("register")]
-    public async Task<UserDto?> RegisterEmployerAsync(RegisterDto registerDto, [FromQuery] string userType)
+    public async Task<UserDto?> RegisterAsync(RegisterDto registerDto, [FromQuery] string userType)
     {
-        if (!IsValidModelState()) return null;
-        
-        var result = await repository.RegisterAsync(registerDto, userType);
-
-        if (!result.Succeeded)
+        if (! ModelState.IsValid)
         {
-            Response.StatusCode = 400;
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError("identity", error.Description);
-            }
-
+            SetStatusCodeTo(400);
             return null;
         }
-        
-        var user = await repository.GetByEmailAsync(registerDto.Email);
-        if (user == null) throw new ApplicationException("Unable to create user");
-        
-        if (!await tokenService.SetRefreshToken(user)) throw new ApplicationException("Unable to set refresh token");
-        
-        var userDto = mapper.Map<UserDto>(user);
-        userDto.AccessToken = await tokenService.GenerateAccessToken(user);
-        
-        Response.StatusCode = 201;
-        Response.Headers.Location = $"/Employers/{user.Id}";
-        
-        return userDto;
+
+        var serviceResult = await userService.RegisterAsync(registerDto, userType);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
 
     [AllowAnonymous]
     [HttpPost("login")]
     public async Task<UserDto?> LoginAsync(LoginDto loginDto)
     {
-        if (!IsValidModelState()) return null;
-        
-        var user = await repository.LoginAsync(loginDto);
-
-        if (user == null)
+        if (! ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("identity", "Invalid credentials");
+            SetStatusCodeTo(400);
             return null;
         }
 
-        if (!await tokenService.SetRefreshToken(user)) throw new ApplicationException("Unable to set refresh token");
-        
-        var userDto = mapper.Map<UserDto>(user);
-        userDto.AccessToken = await tokenService.GenerateAccessToken(user);
-        
-        Response.Headers.Location = $"/Account/{user.Id}";
-        return userDto;
+        var serviceResult = await userService.LoginAsync(loginDto);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [Authorize]
-    [HttpPut("update/{id}")]
-    public async Task<UserDto?> UpdateAsync(string id, UpdateUserDto userDto)
+    [HttpPatch("update/{id}")]
+    public async Task<UserDto?> PatchAsync(string id, UpdateUserDto updateUserDto)
     {
-        if (!IsValidModelState()) return null;
-
-        if (id != userDto.Id)
+        if (! ModelState.IsValid || ! IdsMatch(id, updateUserDto.Id))
         {
-            Response.StatusCode = 400;
-            ModelState.AddModelError("Id", "UserId does not match Id in route");
+            SetStatusCodeTo(400);
+            return null;
+        }
+        if (! await IsSameUserOrAdminAsync(id))
+        {
+            SetStatusCodeTo(401);
             return null;
         }
 
-        var authorizationResult = await authorizationService.AuthorizeAsync(User, id, "SameUserOrAdmin");
-        if (!authorizationResult.Succeeded)
-        {
-            Response.StatusCode = 403;
-            return null;
-        }
-        
-        var user = await repository.GetByIdAsync(id);
-        if (user == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "Account with provided Id does not exist");
-            return null;
-        }
-        
-        var result = await repository.UpdateAsync(mapper.Map(userDto, user));
-
-        if (result == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Id", "Account with provided Id does not exist");
-            return null;
-        }
-
-        if (! result.Succeeded)
-        {
-            Response.StatusCode = 400;
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError("identity", error.Description);
-            }
-            return null;
-        }
-        
-        return mapper.Map<UserDto>(user);
+        var serviceResult = await userService.UpdateAsync(updateUserDto);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     [Authorize]
     [HttpPost("{id}/picture")]
-    public async Task<UserDto?> UploadPictureAsync(IFormFile file, string id)
+    public async Task<bool> UploadPictureAsync(IFormFile file, string id)
     {
-        if (!IsValidModelState()) return null;
-
-        if (file.Length == 0)
+        if (! ModelState.IsValid || file.Length < 1)
         {
-            Response.StatusCode = 400;
-            return null;
+            SetStatusCodeTo(400);
+            return false;
         }
-
-        if (file.ContentType != "image/jpeg" && file.ContentType != "image/png")
+        if (! await IsSameUserOrAdminAsync(id))
         {
-            Response.StatusCode = 415;
-            return null;
+            SetStatusCodeTo(401);
+            return false;
         }
-        
-        var authorizationResult = await authorizationService.AuthorizeAsync(User, id, "SameUserOrAdmin");
-        if (!authorizationResult.Succeeded)
-        {
-            Response.StatusCode = 403;
-            return null;
-        }
-
-        var user = await repository.GetByIdAsync(id);
-        if (user == null)
-        {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Record", "Account with provided Id does not exist");
-            return null;
-        }
-        
-        //Getting extension from file
-        var extension = Path.GetExtension(file.FileName);
-
-        if (string.IsNullOrEmpty(extension))
+        if (IsInvalidFileFormat(file))
         {
             Response.StatusCode = 415;
-            return null;
-        }
-        
-        var fileName = $"{id}{extension}";
-        
-        await using (var stream = file.OpenReadStream())
-        {
-            var url = await profilePictureService.UploadAsync(stream, fileName, extension);
-
-            user.PictureUrl = url;
-            
-            var result = await repository.UpdateAsync(user);
-
-            if (result == null)
-            {
-                Response.StatusCode = 404;
-                ModelState.AddModelError("Id", "Account with provided Id does not exist");
-                return null;
-            }
-
-            if (! result.Succeeded)
-            {
-                Response.StatusCode = 400;
-                foreach (var error in result.Errors)
-                {
-                    ModelState.AddModelError("identity", error.Description);
-                }
-                return null;
-            }
+            return false;
         }
 
-        return mapper.Map<UserDto>(user);
+        var serviceResult = await userService.UploadPictureAsync(file, id);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
     
     
@@ -260,23 +145,20 @@ public class UsersController(IUserRepository repository, ITokenService tokenServ
     [HttpDelete("{id}")]
     public async Task DeleteAsync(string id)
     {
-        var result = await repository.DeleteAsync(id);
-
-        if (result == null)
+        if (! ModelState.IsValid)
         {
-            Response.StatusCode = 404;
-            ModelState.AddModelError("Id", "Account with provided Id does not exist");
+            SetStatusCodeTo(400);
             return;
         }
-        
-        if (!result.Succeeded)
+        //Only admin can delete user
+        if (! await IsSameUserOrAdminAsync(string.Empty))
         {
-            Response.StatusCode = 400;
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError("identity", error.Description);
-            }
+            SetStatusCodeTo(401);
+            return;
         }
+
+        var serviceResult = await userService.DeleteAsync(id);
+        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
     }
     
     [AllowAnonymous]
@@ -284,47 +166,42 @@ public class UsersController(IUserRepository repository, ITokenService tokenServ
     public async Task<UserDto?> RefreshTokenAsync()
     {
         const string tokenName = "refreshToken";
-        var refreshToken = Request.Cookies[tokenName];
+        var refreshToken = GetRefreshTokenFromCookie(tokenName);
         
         if (refreshToken == null)
         {
-            Response.StatusCode = 404;
+            SetStatusCodeTo(404);
             return null;
         }
         
-        var user = await repository.GetByRefreshTokenAsync(refreshToken);
-
-        if (user == null)
-        {
-            Response.StatusCode = 401;
-            return null;
-        }
-
-        if (!await tokenService.SetRefreshToken(user)) throw new ApplicationException("Unable to set refresh token");
-        
-        var userDto = mapper.Map<UserDto>(user);
-        userDto.AccessToken = await tokenService.GenerateAccessToken(user);
-        
-        return userDto;
+        var serviceResult = await userService.GetRefreshTokenAsync(refreshToken);
+        if (!serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
+        return serviceResult.Data;
     }
+    
+    
     
     //Helper functions
-
-    private bool IsValidModelState()
+    private static bool IdsMatch(string firstId, string secondId)
     {
-        if (ModelState.IsValid) return true;
-        
-        Response.StatusCode = 400;
-        return false;
+        return firstId == secondId;
     }
-    
-    private async Task<bool> AuthorizeUser(string id)
+
+    private async Task<bool> IsSameUserOrAdminAsync(string id)
     {
         var authorizationResult = await authorizationService.AuthorizeAsync(User, id, "SameUserOrAdmin");
-        if (authorizationResult.Succeeded) return true;
+        return authorizationResult.Succeeded;
+    }
+    
+    private void SetStatusCodeTo(int statusCode) => Response.StatusCode = statusCode;
 
-        Response.StatusCode = 403;
-        ModelState.AddModelError("Forbidden", "Account is not authorized to perform this action");
-        return false;
+    private static bool IsInvalidFileFormat(IFormFile file)
+    {
+        return file.ContentType != "image/jpeg" && file.ContentType != "image/png";
+    }
+
+    private string? GetRefreshTokenFromCookie(string refreshTokenName)
+    {
+        return Request.Cookies[refreshTokenName];
     }
 }
