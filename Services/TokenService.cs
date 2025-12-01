@@ -17,6 +17,7 @@ public class TokenService(IUserRepository userRepository, IConfiguration config)
     {
         var tokenKey = Environment.GetEnvironmentVariable("TOKEN_KEY") ?? throw new Exception("Token key not found");
         //var tokenKey = config["TokenKey"] ?? throw new Exception("Token key not found");
+        
         if (tokenKey.Length < 64) throw new Exception("Token key needs to be at least 64 characters long");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenKey));
 
@@ -48,7 +49,7 @@ public class TokenService(IUserRepository userRepository, IConfiguration config)
         return Convert.ToBase64String(randomBytes);
     }
     
-    public async Task<bool> SetRefreshToken(User user)
+    public async Task<bool> SetRefreshTokenAsync(User user)
     {
         var refreshToken = GenerateRefreshToken();
         user.RefreshToken = refreshToken;
