@@ -60,9 +60,10 @@ public class UserService(IUserRepository repository, ITokenService tokenService,
         {
             var user = await repository.GetByEmailAsync(email);
 
-            return user == null ? 
-                ServiceResultBuilder.BuildFailure<bool>(ServiceResultError.NotFound) :
-                ServiceResultBuilder.BuildSuccess(true);
+            return user == null
+                ? ServiceResultBuilder.BuildSuccess(false)
+                : ServiceResultBuilder.BuildSuccess(true);
+
         }
         catch (Exception e)
         {
@@ -96,9 +97,12 @@ public class UserService(IUserRepository repository, ITokenService tokenService,
                     return ServiceResultBuilder.BuildFailure<UserDto>(ServiceResultError.InvalidArgument);
             }
             
+            if (! await SetRefreshTokenAsync(user)) 
+                return ServiceResultBuilder.BuildFailure<UserDto>(ServiceResultError.TokenError);
+            
             var userDto = MapUserToDto(user);
             userDto.AccessToken = await tokenService.GenerateAccessToken(user);
-            return ServiceResultBuilder.BuildSuccess(MapUserToDto(user));
+            return ServiceResultBuilder.BuildSuccess(userDto);
         }
         catch (Exception e)
         {
@@ -151,6 +155,26 @@ public class UserService(IUserRepository repository, ITokenService tokenService,
         {
             ExceptionService.LogException(e);
             return ServiceResultBuilder.BuildFailure<UserDto>(ServiceResultError.DatabaseError);
+        }
+    }
+    
+    public async Task<ServiceResult<bool>> UpdateRefreshTokenAsync(User user)
+    {
+        try
+        {
+            var oldUser = await GetUserFromRepositoryAsync(user.Id);
+            if (oldUser == null) return ServiceResultBuilder.BuildFailure<bool>(ServiceResultError.NotFound);
+            
+            var result = await repository.UpdateAsync(user);
+            
+            return result.Succeeded ?
+                ServiceResultBuilder.BuildSuccess(true) :
+                ServiceResultBuilder.BuildFailure<bool>(ServiceResultError.DatabaseError);
+        }
+        catch (Exception e)
+        {
+            ExceptionService.LogException(e);
+            return ServiceResultBuilder.BuildFailure<bool>(ServiceResultError.DatabaseError);
         }
     }
 

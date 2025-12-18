@@ -102,7 +102,9 @@ builder.Services.AddAutoMapper(cfg =>
     cfg.CreateMap<UpdateUserDto, User>();
     cfg.CreateMap<RegisterDto, Employer>().ReverseMap();
     cfg.CreateMap<RegisterDto, Worker>().ReverseMap();
-    cfg.CreateMap<Job, Job>().ReverseMap();
+    cfg.CreateMap<Job, Job>();
+    cfg.CreateMap<Employer, Employer>();
+    cfg.CreateMap<Worker, Worker>();
 
 
     cfg.CreateMap<WorkerRating, WorkerRatingDto>()

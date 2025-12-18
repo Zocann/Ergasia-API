@@ -39,6 +39,6 @@ public class RegisterDto(string firstName, string lastName, string password, str
     [StringLength(30, MinimumLength = 3, ErrorMessage = "Address must be between 3 and 30 characters")]
     public string Address { get; set; } = address;
     
-    [ValidDateOfBirth] [Required] 
+    [Required] 
     public DateTime DateOfBirth { get; set; } = dateOfBirth;
 }

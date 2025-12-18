@@ -1,7 +1,6 @@
 using AutoMapper;
 using Ergasia_API.Data;
 using Ergasia_API.Data.Enums;
-using Ergasia_API.DTOs.Employer;
 using Ergasia_API.DTOs.Rating;
 using Ergasia_API.Helpers;
 using Ergasia_API.Models;

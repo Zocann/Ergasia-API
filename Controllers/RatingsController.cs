@@ -73,7 +73,7 @@ public class RatingsController(
 
     [HttpGet("/Employers/{employerId}/Jobs/{jobId}/Ratings/{workerId}")]
     [AllowAnonymous]
-    public async Task<WorkerJobDto?> GetJobRatingAsync(string employerId, string jobId, string workerId)
+    public async Task<WorkerJobDto?> GetJobRatingAsync(string jobId, string workerId)
     {
         var serviceResult = await workerJobService.GetAsync(workerId, jobId);
         if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
@@ -317,12 +317,12 @@ public class RatingsController(
     
     private void SetStatusCodeTo(int statusCode) => Response.StatusCode = statusCode;
 
-    private RatingDto CreateRatingDto(string workerId, string employerId, int numericalRating, string? verbalRating)
+    private RatingDto CreateRatingDto(string employerId, string workerId, int numericalRating, string? verbalRating)
     {
         return new RatingDto
         {
-            WorkerId = workerId,
             EmployerId = employerId,
+            WorkerId = workerId,
             NumericalRating = numericalRating,
             VerbalRating = verbalRating,
         };

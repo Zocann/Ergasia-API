@@ -1,13 +1,10 @@
-using AutoMapper;
-using Ergasia_API.DTOs.User;
 using Ergasia_API.Models.Interfaces;
-using Ergasia_API.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ergasia_API.Models.Repositories;
 
-public class UserEfRepository(UserManager<User> userManager, IMapper mapper) : IUserRepository
+public class UserEfRepository(UserManager<User> userManager) : IUserRepository
 {
     public async Task<User?> GetByIdAsync(string id)
     {
@@ -58,5 +55,15 @@ public class UserEfRepository(UserManager<User> userManager, IMapper mapper) : I
     public async Task<bool> CheckPasswordAsync(User user, string password)
     {
         return await userManager.CheckPasswordAsync(user, password);
+    }
+    
+    public async Task RecoverPasswordAsync(string id, string password)
+    {
+        var user = await GetByIdAsync(id);
+        if (user != null)
+        {
+            await userManager.RemovePasswordAsync(user);
+            await userManager.AddPasswordAsync(user, password);
+        }
     }
 }

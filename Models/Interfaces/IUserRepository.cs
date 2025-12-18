@@ -15,4 +15,6 @@ public interface IUserRepository
     public Task<IdentityResult> DeleteAsync(User user);
     public Task<User?> GetByRefreshTokenAsync(string refreshToken);
     public Task<bool> CheckPasswordAsync(User user, string loginDtoPassword);
+
+    public Task RecoverPasswordAsync(string id, string password);
 }

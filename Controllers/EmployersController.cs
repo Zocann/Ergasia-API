@@ -1,8 +1,5 @@
-using AutoMapper;
-using Ergasia_API.Data.Enums;
 using Ergasia_API.DTOs.Employer;
 using Ergasia_API.Helpers;
-using Ergasia_API.Models.Interfaces;
 using Ergasia_API.Services.Interfaces.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +8,7 @@ namespace Ergasia_API.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class EmployersController(IEmployerService employerService, IMapper mapper, 
+public class EmployersController(IEmployerService employerService, 
     IAuthorizationService authorizationService) : ControllerBase
 {
     [HttpGet]

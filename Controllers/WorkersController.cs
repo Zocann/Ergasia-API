@@ -1,8 +1,4 @@
-using AutoMapper;
-using Azure;
-using Ergasia_API.Data.Enums;
 using Ergasia_API.Helpers;
-using Ergasia_API.Models.Interfaces;
 using Ergasia_API.Services.Interfaces.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +9,7 @@ namespace Ergasia_API.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class WorkersController(IWorkerService workerService, IMapper mapper, 
+public class WorkersController(IWorkerService workerService, 
     IAuthorizationService authorizationService) : ControllerBase
 {
     [HttpGet]
@@ -52,7 +48,7 @@ public class WorkersController(IWorkerService workerService, IMapper mapper,
             return null;
         }
         
-        var serviceResult = await workerService.Update(workerDto);
+        var serviceResult = await workerService.UpdateAsync(workerDto);
         
         if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
         return serviceResult.Data;

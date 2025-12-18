@@ -5,7 +5,6 @@ using Ergasia_API.DTOs.Worker;
 using Ergasia_API.Helpers;
 using Ergasia_API.Models;
 using Ergasia_API.Models.Interfaces;
-using Ergasia_API.Services.Interfaces;
 using Ergasia_API.Services.Interfaces.Model;
 
 namespace Ergasia_API.Services.Model;
@@ -49,7 +48,7 @@ public class WorkerService(IWorkerRepository repository, IMapper mapper) : IWork
         }
     }
 
-    public async Task<ServiceResult<WorkerDto>> Update(WorkerDto workerDto)
+    public async Task<ServiceResult<WorkerDto>> UpdateAsync(WorkerDto workerDto)
     {
         try
         {
@@ -74,16 +73,18 @@ public class WorkerService(IWorkerRepository repository, IMapper mapper) : IWork
         return result;
     }
 
-    private Worker MapWorkerDtoToWorker(WorkerDto workerDto, Worker oldWorker)
+    private static Worker MapWorkerDtoToWorker(WorkerDto newWorkerDto, Worker worker)
     {
-        var worker = mapper.Map<Worker>(workerDto);
+        worker.FirstName = newWorkerDto.FirstName;
+        worker.LastName = newWorkerDto.LastName;
+        worker.PhoneNumber = newWorkerDto.PhoneNumber;
         
-        worker.Id = oldWorker.Id;
-        worker.RefreshToken = oldWorker.RefreshToken;
-        worker.RefreshTokenExpiration = oldWorker.RefreshTokenExpiration;
-        worker.PictureUrl = oldWorker.PictureUrl;
-        worker.IsActive = oldWorker.IsActive;
-        worker.DateOfRegistration = oldWorker.DateOfRegistration;
+        worker.Address = newWorkerDto.Address;
+        worker.City = newWorkerDto.City;
+        worker.State = newWorkerDto.State;
+        
+        worker.Description = newWorkerDto.Description;
+        worker.MinimalSalary = newWorkerDto.MinimalSalary;
         
         return worker;
     }

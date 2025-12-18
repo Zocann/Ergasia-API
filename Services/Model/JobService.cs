@@ -1,5 +1,4 @@
 using AutoMapper;
-using Azure;
 using Ergasia_API.Data;
 using Ergasia_API.Data.Enums;
 using Ergasia_API.DTOs.Job;

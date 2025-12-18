@@ -1,11 +1,10 @@
-using AutoMapper;
 using Ergasia_API.Data;
 using Ergasia_API.Models.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ergasia_API.Models.Repositories;
 
-public class WorkerJobEfRepository(PrimaryDbContext context, IMapper mapper) : IWorkerJobRepository
+public class WorkerJobEfRepository(PrimaryDbContext context) : IWorkerJobRepository
 {
     public async Task<IEnumerable<WorkerJob>> GetByJobIdAsync(string jobId)
     {

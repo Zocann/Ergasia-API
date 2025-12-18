@@ -1,10 +1,11 @@
+using AutoMapper;
 using Ergasia_API.Data;
 using Ergasia_API.Models.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ergasia_API.Models.Repositories;
 
-public class EmployerEfRepository(PrimaryDbContext context) : IEmployerRepository
+public class EmployerEfRepository(PrimaryDbContext context, IMapper mapper) : IEmployerRepository
 {
     public async Task<Employer?> GetByIdAsync(string id)
     {
@@ -17,9 +18,10 @@ public class EmployerEfRepository(PrimaryDbContext context) : IEmployerRepositor
     }
     
     
-    public async Task UpdateAsync(Employer employer)
+    public async Task UpdateAsync(Employer newEmployer)
     {
-        context.Employers.Update(employer);
+        var employer = await GetByIdAsync(newEmployer.Id);
+        mapper.Map(newEmployer, employer);
         await context.SaveChangesAsync();
     }
 }

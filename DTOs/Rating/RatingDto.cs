@@ -1,4 +1,4 @@
-namespace Ergasia_API.Data;
+namespace Ergasia_API.DTOs.Rating;
 
 public struct RatingDto
 {

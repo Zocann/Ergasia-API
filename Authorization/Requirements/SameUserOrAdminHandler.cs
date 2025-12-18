@@ -8,10 +8,25 @@ public class SameUserOrAdminHandler(UserManager<User> accountManager) : Authoriz
 {
     protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, SameUserOrAdminRequirement sameUserOrAdminRequirement, string resourceUserId)
     {
-        var currentUserId = accountManager.GetUserId(context.User);
-        if ((!string.IsNullOrEmpty(currentUserId) && currentUserId == resourceUserId) || context.User.IsInRole("Admin"))
+        var currentUserId = GetUserId(context);
+        if (IsValidUserId(currentUserId, resourceUserId) || UserIsAdmin(context))
             context.Succeed(sameUserOrAdminRequirement);
         
         return Task.CompletedTask;
+    }
+
+    private string? GetUserId(AuthorizationHandlerContext context)
+    {
+        return accountManager.GetUserId(context.User);
+    }
+
+    private static bool IsValidUserId(string? userId, string resourceUserId)
+    {
+        return !string.IsNullOrEmpty(userId) && resourceUserId == userId;
+    }
+
+    private static bool UserIsAdmin(AuthorizationHandlerContext context)
+    {
+        return context.User.IsInRole("Admin");
     }
 }

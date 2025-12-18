@@ -26,7 +26,6 @@ public static class GetStatusCode
 
             case ServiceResultError.InvalidCredentials:
                 return 401;
-                break;
 
             case ServiceResultError.NoError:
             default:

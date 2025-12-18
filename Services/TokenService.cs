@@ -5,9 +5,7 @@ using System.Text;
 using Ergasia_API.Models;
 using Ergasia_API.Models.Interfaces;
 using Ergasia_API.Services.Interfaces;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
-using Exception = System.Exception;
 
 namespace Ergasia_API.Services;
 
@@ -15,31 +13,23 @@ public class TokenService(IUserRepository userRepository, IConfiguration config)
 {
     public async Task<string> GenerateAccessToken(User user)
     {
-        var tokenKey = Environment.GetEnvironmentVariable("TOKEN_KEY") ?? throw new Exception("Token key not found");
-        //var tokenKey = config["TokenKey"] ?? throw new Exception("Token key not found");
-        
-        if (tokenKey.Length < 64) throw new Exception("Token key needs to be at least 64 characters long");
+        var tokenKey = GetTokenKey();
+
+        if (!IsValidTokenKey(tokenKey)) throw new Exception("Token key needs to be at least 64 characters long");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenKey));
 
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.Email, user.Email ?? throw new InvalidOperationException("User email is null")),
-            new(ClaimTypes.NameIdentifier, user.Id),
-        };
-        var roles = await userRepository.GetRolesAsync(user);
-        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
-        
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature);
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddMinutes(1),
-            SigningCredentials = credentials
-        };
+        var claims = BuildClaimsFromUser(user);
+        var role = await GetRoleFromUserRepositoryAsync(user);
+        if (string.IsNullOrEmpty(role)) throw new Exception("User has no role");
+
+        claims.Add(new Claim(ClaimTypes.Role, role));
+
+        var credentials = BuildSigningCredentials(key);
+        var tokenDescriptor = BuildSecurityTokenDescriptor(claims, credentials);
 
         var tokenHandler = new JwtSecurityTokenHandler();
         var token = tokenHandler.CreateToken(tokenDescriptor);
-        
+
         return tokenHandler.WriteToken(token);
     }
 
@@ -48,16 +38,62 @@ public class TokenService(IUserRepository userRepository, IConfiguration config)
         var randomBytes = RandomNumberGenerator.GetBytes(64);
         return Convert.ToBase64String(randomBytes);
     }
-    
+
     public async Task<bool> SetRefreshTokenAsync(User user)
     {
         var refreshToken = GenerateRefreshToken();
         user.RefreshToken = refreshToken;
         user.RefreshTokenExpiration = DateTime.UtcNow.AddDays(3);
 
+        return await UpdateRefreshTokenInUserRepositoryAsync(user);
+    }
+
+    private string GetTokenKey()
+    {
+        return Environment.GetEnvironmentVariable("TOKEN_KEY") ?? throw new Exception("Token key not found");
+        //return config["TokenKey"] ?? throw new Exception("Token key not found");
+    }
+
+    private static bool IsValidTokenKey(string tokenKey)
+    {
+        return tokenKey.Length > 64;
+    }
+
+    private static List<Claim> BuildClaimsFromUser(User user)
+    {
+        return
+        [
+            new Claim(ClaimTypes.Email, user.Email ?? throw new InvalidOperationException("User email is null")),
+            new Claim(ClaimTypes.NameIdentifier, user.Id)
+        ];
+    }
+
+    private async Task<string?> GetRoleFromUserRepositoryAsync(User user)
+    {
+        var roles = await userRepository.GetRolesAsync(user);
+        return roles.FirstOrDefault();
+    }
+
+    private static SigningCredentials BuildSigningCredentials(SymmetricSecurityKey key)
+    {
+        return new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature);
+    }
+
+    private static SecurityTokenDescriptor BuildSecurityTokenDescriptor(List<Claim> claims,
+        SigningCredentials signingCredentials)
+    {
+        const int expirationInMinutes = 1;
+        return new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = DateTime.UtcNow.AddMinutes(expirationInMinutes),
+            SigningCredentials = signingCredentials
+        };
+    }
+
+    private async Task<bool> UpdateRefreshTokenInUserRepositoryAsync(User user)
+    {
         var result = await userRepository.UpdateAsync(user);
-        
-        if(result != null && result.Succeeded) return true;
-        return false;
+        return result.Succeeded;
     }
 }

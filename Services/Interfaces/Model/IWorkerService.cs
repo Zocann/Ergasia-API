@@ -7,5 +7,5 @@ public interface IWorkerService
 {
     public Task<ServiceResult<IEnumerable<WorkerDto>>> GetAllAsync();
     public Task<ServiceResult<WorkerDto>> GetByIdAsync(string id);
-    public Task<ServiceResult<WorkerDto>> Update(WorkerDto workerDto);
+    public Task<ServiceResult<WorkerDto>> UpdateAsync(WorkerDto workerDto);
 }

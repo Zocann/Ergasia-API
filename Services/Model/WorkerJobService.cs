@@ -156,8 +156,6 @@ public class WorkerJobService(
             var workerJob = await GetWorkerJobAsync(workerId, jobId);
             if (workerJob == null) 
                 return ServiceResultBuilder.BuildFailure<bool>(ServiceResultError.NotFound);
-            if (WorkerJobIsInProgresOrFinished(workerJob))
-                return ServiceResultBuilder.BuildFailure<bool>(ServiceResultError.UnableToChange);
 
             await repository.DeleteRatingAsync(workerJob);
             return ServiceResultBuilder.BuildSuccess(true);
@@ -184,11 +182,6 @@ public class WorkerJobService(
     private async Task<WorkerJob?> GetWorkerJobAsync(string workerId, string jobId)
     {
         return await repository.GetAsync(workerId, jobId);
-    }
-
-    private static bool WorkerJobIsInProgresOrFinished(WorkerJob workerJob)
-    {
-        return workerJob.Job.DateOfBegin <= DateTime.Now;
     }
 
     private static WorkerJob CreateWorkerJob(string workerId, string jobId, Worker worker, Job job)

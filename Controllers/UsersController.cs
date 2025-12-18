@@ -60,14 +60,13 @@ public class UsersController(IUserService userService, IAuthorizationService aut
         }
 
         var serviceResult = await userService.UserWithThisEmailExists(email);
-        if (! serviceResult.IsSuccess) SetStatusCodeTo(GetStatusCode.BasedOnError(serviceResult.Error));
-        return serviceResult.Data;
+        return !serviceResult.Data;
 
     }
     
     [AllowAnonymous]
     [HttpPost("register")]
-    public async Task<UserDto?> RegisterAsync(RegisterDto registerDto, [FromQuery] string userType)
+    public async Task<UserDto?> RegisterAsync([FromBody] RegisterDto registerDto, [FromQuery] string userType)
     {
         if (! ModelState.IsValid)
         {

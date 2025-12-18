@@ -73,16 +73,20 @@ public class EmployerService(IEmployerRepository repository, IMapper mapper) : I
         return result;
     }
 
-    private Employer MapEmployerDtoToEmployer(EmployerDto employerDto, Employer oldEmployer)
+    private static Employer MapEmployerDtoToEmployer(EmployerDto newEmployerDto, Employer employer)
     {
-        var employer = mapper.Map<Employer>(employerDto);
+        employer.FirstName = newEmployerDto.FirstName;
+        employer.LastName = newEmployerDto.LastName;
+        employer.PhoneNumber = newEmployerDto.PhoneNumber;
         
-        employer.Id = oldEmployer.Id;
-        employer.RefreshToken = oldEmployer.RefreshToken;
-        employer.RefreshTokenExpiration = oldEmployer.RefreshTokenExpiration;
-        employer.PictureUrl = oldEmployer.PictureUrl;
-        employer.IsActive = oldEmployer.IsActive;
-        employer.DateOfRegistration = oldEmployer.DateOfRegistration;
+        employer.Address = newEmployerDto.Address;
+        employer.City = newEmployerDto.City;
+        employer.State = newEmployerDto.State;
+        
+        employer.CompanyName = newEmployerDto.CompanyName;
+        employer.CompanyAddress = newEmployerDto.CompanyAddress;
+        employer.CompanyCity = newEmployerDto.CompanyCity;
+        employer.CompanyState = newEmployerDto.CompanyState;
         
         return employer;
     }
